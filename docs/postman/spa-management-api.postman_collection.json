@@ -1,0 +1,1007 @@
+{
+	"info": {
+		"_postman_id": "9f2c1a4e-6b7d-4c3e-a1b2-3c4d5e6f7a8b",
+		"name": "SPA Management API",
+		"description": "Postman collection for the SPA booking platform API (v1). All responses use the contract envelope `{ success, message, data }`; errors use `{ success:false, message, code, errors? }`.\n\n**Auth:** Bearer access token via `{{base_url}}/api/v1/auth/login`. Admin demo account: mobile `9800000000`, password `ChangeMe!2026`. Business owner demo: `9811111111` / `OwnerPass!1`.\n\nLogin/register-verify requests automatically store `{{access_token}}` and `{{refresh_token}}` collection variables.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "base_url", "value": "http://127.0.0.1:8000/api/v1" },
+		{ "key": "access_token", "value": "" },
+		{ "key": "refresh_token", "value": "" }
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"mobile_number\": \"+9779812345678\",\n  \"password\": \"Customer#1\",\n  \"display_name\": \"Test Customer\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] },
+						"description": "Creates an account and issues a 4-digit verification code (delivered via the notification/log channel)."
+					}
+				},
+				{
+					"name": "Verify registration",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.access_token) {",
+									"  pm.collectionVariables.set('access_token', body.data.access_token);",
+									"  pm.collectionVariables.set('refresh_token', body.data.refresh_token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"user_id\": \"<ULID from register>\",\n  \"code\": \"1234\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/register/verify", "host": ["{{base_url}}"], "path": ["auth", "register", "verify"] }
+					}
+				},
+				{
+					"name": "Resend verification",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"user_id\": \"<ULID from register>\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/verification/resend", "host": ["{{base_url}}"], "path": ["auth", "verification", "resend"] }
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.access_token) {",
+									"  pm.collectionVariables.set('access_token', body.data.access_token);",
+									"  pm.collectionVariables.set('refresh_token', body.data.refresh_token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"mobile_number\": \"9800000000\",\n  \"password\": \"ChangeMe!2026\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+					}
+				},
+				{
+					"name": "Refresh token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.access_token) {",
+									"  pm.collectionVariables.set('access_token', body.data.access_token);",
+									"  pm.collectionVariables.set('refresh_token', body.data.refresh_token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/refresh", "host": ["{{base_url}}"], "path": ["auth", "refresh"] }
+					}
+				},
+				{
+					"name": "Forgot password",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"mobile_number\": \"9800000000\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/password/forgot", "host": ["{{base_url}}"], "path": ["auth", "password", "forgot"] }
+					}
+				},
+				{
+					"name": "Verify password reset code",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"user_id\": \"<ULID>\",\n  \"code\": \"1234\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/password/verify", "host": ["{{base_url}}"], "path": ["auth", "password", "verify"] }
+					}
+				},
+				{
+					"name": "Resend password reset code",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"user_id\": \"<ULID>\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/password/resend", "host": ["{{base_url}}"], "path": ["auth", "password", "resend"] }
+					}
+				},
+				{
+					"name": "Reset password",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"user_id\": \"<ULID>\",\n  \"code\": \"1234\",\n  \"password\": \"NewPass#1\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/password/reset", "host": ["{{base_url}}"], "path": ["auth", "password", "reset"] }
+					}
+				},
+				{
+					"name": "Change password",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"current_password\": \"ChangeMe!2026\",\n  \"password\": \"NewPass#1\",\n  \"password_confirmation\": \"NewPass#1\"\n}" },
+						"url": { "raw": "{{base_url}}/auth/password/change", "host": ["{{base_url}}"], "path": ["auth", "password", "change"] }
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+					}
+				}
+			]
+		},
+		{
+			"name": "Customer",
+			"item": [
+				{
+					"name": "Me",
+					"item": [
+						{
+							"name": "Get profile",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/users/me", "host": ["{{base_url}}"], "path": ["users", "me"] } }
+						},
+						{
+							"name": "Update profile",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"display_name\": \"Updated Name\",\n  \"email\": \"me@example.com\"\n}" },
+								"url": { "raw": "{{base_url}}/users/me", "host": ["{{base_url}}"], "path": ["users", "me"] }
+							}
+						},
+						{
+							"name": "List locations",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/locations", "host": ["{{base_url}}"], "path": ["locations"] } }
+						},
+						{
+							"name": "Update my location",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"location_id\": \"<ULID>\"\n}" },
+								"url": { "raw": "{{base_url}}/users/me/location", "host": ["{{base_url}}"], "path": ["users", "me", "location"] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Discovery",
+					"item": [
+						{
+							"name": "Home catalog",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/home", "host": ["{{base_url}}"], "path": ["home"] } }
+						},
+						{
+							"name": "List businesses",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/businesses?search=serenity&category_id=&sort=rating",
+									"host": ["{{base_url}}"],
+									"path": ["businesses"],
+									"query": [
+										{ "key": "search", "value": "serenity" },
+										{ "key": "category_id", "value": "" },
+										{ "key": "sort", "value": "rating" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Business detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/businesses/:business", "host": ["{{base_url}}"], "path": ["businesses", ":business"], "variable": [{ "key": "business", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Service availability",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/businesses/:business/services/:service/availability?date=2026-10-01",
+									"host": ["{{base_url}}"],
+									"path": ["businesses", ":business", "services", ":service", "availability"],
+									"variable": [
+										{ "key": "business", "value": "<ULID>" },
+										{ "key": "service", "value": "<ULID>" }
+									],
+									"query": [{ "key": "date", "value": "2026-10-01" }]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Bookings",
+					"item": [
+						{
+							"name": "Create booking request",
+							"request": {
+								"method": "POST",
+								"header": [
+									{ "key": "Content-Type", "value": "application/json" },
+									{ "key": "Idempotency-Key", "value": "<optional ULID for safe retries>" }
+								],
+								"body": { "mode": "raw", "raw": "{\n  \"service_id\": \"<ULID>\",\n  \"business_location_id\": \"<ULID>\",\n  \"requested_date\": \"2026-10-01\",\n  \"people_count\": 1\n}" },
+								"url": { "raw": "{{base_url}}/bookings/requests", "host": ["{{base_url}}"], "path": ["bookings", "requests"] }
+							}
+						},
+						{
+							"name": "Show booking request",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/bookings/requests/:booking_request", "host": ["{{base_url}}"], "path": ["bookings", "requests", ":booking_request"], "variable": [{ "key": "booking_request", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Confirm proposed time",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"time_id\": \"<proposed time id>\"\n}" },
+								"url": { "raw": "{{base_url}}/bookings/requests/:booking_request/confirm", "host": ["{{base_url}}"], "path": ["bookings", "requests", ":booking_request", "confirm"], "variable": [{ "key": "booking_request", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "List my bookings",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/bookings?status=confirmed&page=1",
+									"host": ["{{base_url}}"],
+									"path": ["bookings"],
+									"query": [
+										{ "key": "status", "value": "confirmed" },
+										{ "key": "page", "value": "1" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Booking detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/bookings/:booking", "host": ["{{base_url}}"], "path": ["bookings", ":booking"], "variable": [{ "key": "booking", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Cancel booking",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"reason\": \"Change of plans\"\n}" },
+								"url": { "raw": "{{base_url}}/bookings/:booking/cancel", "host": ["{{base_url}}"], "path": ["bookings", ":booking", "cancel"], "variable": [{ "key": "booking", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Checkout & payments",
+					"item": [
+						{
+							"name": "Checkout summary",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/bookings/:booking/checkout", "host": ["{{base_url}}"], "path": ["bookings", ":booking", "checkout"], "variable": [{ "key": "booking", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Build quote",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"tip_minor\": 0,\n  \"promo_code\": \"WELCOME10\"\n}" },
+								"url": { "raw": "{{base_url}}/bookings/:booking/checkout/quote", "host": ["{{base_url}}"], "path": ["bookings", ":booking", "checkout", "quote"], "variable": [{ "key": "booking", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Start checkout",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"quote_id\": \"<ULID>\",\n  \"gateway\": \"esewa\"\n}" },
+								"url": { "raw": "{{base_url}}/bookings/:booking/checkout", "host": ["{{base_url}}"], "path": ["bookings", ":booking", "checkout"], "variable": [{ "key": "booking", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Completion & receipt",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/bookings/:booking/completion", "host": ["{{base_url}}"], "path": ["bookings", ":booking", "completion"], "variable": [{ "key": "booking", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Submit review",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"rating\": 5,\n  \"tag\": \"great\",\n  \"comments\": \"Loved it.\"\n}" },
+								"url": { "raw": "{{base_url}}/bookings/:booking/review", "host": ["{{base_url}}"], "path": ["bookings", ":booking", "review"], "variable": [{ "key": "booking", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Tip checkout",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"amount_minor\": 10000,\n  \"gateway\": \"mypay\"\n}" },
+								"url": { "raw": "{{base_url}}/bookings/:booking/tip/checkout", "host": ["{{base_url}}"], "path": ["bookings", ":booking", "tip", "checkout"], "variable": [{ "key": "booking", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Offers",
+					"item": [
+						{
+							"name": "List offers",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/offers", "host": ["{{base_url}}"], "path": ["offers"] } }
+						},
+						{
+							"name": "Offer detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/offers/:offer", "host": ["{{base_url}}"], "path": ["offers", ":offer"], "variable": [{ "key": "offer", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Redeem offer",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"service_id\": \"<ULID>\"\n}" },
+								"url": { "raw": "{{base_url}}/offers/:offer/redeem", "host": ["{{base_url}}"], "path": ["offers", ":offer", "redeem"], "variable": [{ "key": "offer", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Referrals",
+					"item": [
+						{
+							"name": "My referral code",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/referrals/me", "host": ["{{base_url}}"], "path": ["referrals", "me"] } }
+						},
+						{
+							"name": "Track a share",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"channel\": \"sms\"\n}" },
+								"url": { "raw": "{{base_url}}/referrals/me/share", "host": ["{{base_url}}"], "path": ["referrals", "me", "share"] }
+							}
+						},
+						{
+							"name": "My referral rewards",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/referrals/me/rewards", "host": ["{{base_url}}"], "path": ["referrals", "me", "rewards"] } }
+						}
+					]
+				},
+				{
+					"name": "Notifications",
+					"item": [
+						{
+							"name": "List notifications",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/notifications?filter=today&timezone=Asia/Kathmandu",
+									"host": ["{{base_url}}"],
+									"path": ["notifications"],
+									"query": [
+										{ "key": "filter", "value": "today" },
+										{ "key": "timezone", "value": "Asia/Kathmandu" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Mark read/unread",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"read\": true\n}" },
+								"url": { "raw": "{{base_url}}/notifications/:notification/read", "host": ["{{base_url}}"], "path": ["notifications", ":notification", "read"], "variable": [{ "key": "notification", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Unread count",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/notifications/unread-count", "host": ["{{base_url}}"], "path": ["notifications", "unread-count"] } }
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Business",
+			"item": [
+				{
+					"name": "My businesses",
+					"request": { "method": "GET", "url": { "raw": "{{base_url}}/business/my", "host": ["{{base_url}}"], "path": ["business", "my"] } }
+				},
+				{
+					"name": "Business detail",
+					"request": { "method": "GET", "url": { "raw": "{{base_url}}/business/:business", "host": ["{{base_url}}"], "path": ["business", ":business"], "variable": [{ "key": "business", "value": "<ULID>" }] } }
+				},
+				{
+					"name": "Update business",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"description\": \"Updated description\"\n}" },
+						"url": { "raw": "{{base_url}}/business/:business", "host": ["{{base_url}}"], "path": ["business", ":business"], "variable": [{ "key": "business", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Create branch",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"branch_name\": \"Lakeside\",\n  \"timezone\": \"Asia/Kathmandu\"\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/branches", "host": ["{{base_url}}"], "path": ["business", ":business", "branches"], "variable": [{ "key": "business", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Update branch",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"branch_name\": \"Renamed branch\"\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/branches/:branch", "host": ["{{base_url}}"], "path": ["business", ":business", "branches", ":branch"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "branch", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Replace branch hours",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "[\n  { \"weekday\": 0, \"opens_at\": \"09:00\", \"closes_at\": \"17:00\", \"is_closed\": false },\n  { \"weekday\": 1, \"opens_at\": \"09:00\", \"closes_at\": \"17:00\", \"is_closed\": false },\n  { \"weekday\": 2, \"opens_at\": \"09:00\", \"closes_at\": \"17:00\", \"is_closed\": false },\n  { \"weekday\": 3, \"opens_at\": \"09:00\", \"closes_at\": \"17:00\", \"is_closed\": false },\n  { \"weekday\": 4, \"opens_at\": \"09:00\", \"closes_at\": \"17:00\", \"is_closed\": false },\n  { \"weekday\": 5, \"opens_at\": \"09:00\", \"closes_at\": \"19:00\", \"is_closed\": false },\n  { \"weekday\": 6, \"opens_at\": \"10:00\", \"closes_at\": \"16:00\", \"is_closed\": false }\n]" },
+						"url": { "raw": "{{base_url}}/business/:business/branches/:branch/hours", "host": ["{{base_url}}"], "path": ["business", ":business", "branches", ":branch", "hours"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "branch", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Add closures",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"closures\": [\n    { \"date\": \"2026-10-15\", \"reason\": \"Public holiday\" }\n  ]\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/branches/:branch/closures", "host": ["{{base_url}}"], "path": ["business", ":business", "branches", ":branch", "closures"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "branch", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Remove closure",
+					"request": { "method": "DELETE", "url": { "raw": "{{base_url}}/business/:business/branches/:branch/closures/:closure", "host": ["{{base_url}}"], "path": ["business", ":business", "branches", ":branch", "closures", ":closure"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "branch", "value": "<ULID>" }, { "key": "closure", "value": "<ULID>" }] } }
+				},
+				{
+					"name": "List services",
+					"request": { "method": "GET", "url": { "raw": "{{base_url}}/business/:business/services", "host": ["{{base_url}}"], "path": ["business", ":business", "services"], "variable": [{ "key": "business", "value": "<ULID>" }] } }
+				},
+				{
+					"name": "Create service",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"name\": \"Hot Stone Massage\",\n  \"duration_minutes\": 60,\n  \"max_people\": 2,\n  \"price_minor\": 550000,\n  \"currency\": \"NPR\"\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/services", "host": ["{{base_url}}"], "path": ["business", ":business", "services"], "variable": [{ "key": "business", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Update service (new price row)",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/value+json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"price_minor\": 650000\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/services/:service", "host": ["{{base_url}}"], "path": ["business", ":business", "services", ":service"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "service", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "List staff",
+					"request": { "method": "GET", "url": { "raw": "{{base_url}}/business/:business/staff", "host": ["{{base_url}}"], "path": ["business", ":business", "staff"], "variable": [{ "key": "business", "value": "<ULID>" }] } }
+				},
+				{
+					"name": "Invite staff",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"mobile_number\": \"+9779800000111\",\n  \"role\": \"staff\"\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/staff/invite", "host": ["{{base_url}}"], "path": ["business", ":business", "staff", "invite"], "variable": [{ "key": "business", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Deactivate staff",
+					"request": {
+						"method": "POST",
+						"url": { "raw": "{{base_url}}/business/:business/staff/:user/deactivate", "host": ["{{base_url}}"], "path": ["business", ":business", "staff", ":user", "deactivate"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "user", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "List booking requests",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/business/:business/bookings/requests?status=pending",
+							"host": ["{{base_url}}"],
+							"path": ["business", ":business", "bookings", "requests"],
+							"variable": [{ "key": "business", "value": "<ULID>" }],
+							"query": [{ "key": "status", "value": "pending" }]
+						}
+					}
+				},
+				{
+					"name": "Propose times",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"times\": [\n    { \"starts_at\": \"2026-10-01T10:00:00+05:45\", \"ends_at\": \"2026-10-01T11:00:00+05:45\" },\n    { \"starts_at\": \"2026-10-01T14:00:00+05:45\", \"ends_at\": \"2026-10-01T15:00:00+05:45\" }\n  ]\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/bookings/requests/:booking_request/propose", "host": ["{{base_url}}"], "path": ["business", ":business", "bookings", "requests", ":booking_request", "propose"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "booking_request", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Decline request",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"reason\": \"Fully booked\"\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/bookings/requests/:booking_request/decline", "host": ["{{base_url}}"], "path": ["business", ":business", "bookings", "requests", ":booking_request", "decline"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "booking_request", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "List branch bookings",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/business/:business/bookings?date=2026-10-01",
+							"host": ["{{base_url}}"],
+							"path": ["business", ":business", "bookings"],
+							"variable": [{ "key": "business", "value": "<ULID>" }],
+							"query": [{ "key": "date", "value": "2026-10-01" }]
+						}
+					}
+				},
+				{
+					"name": "Update booking status",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"status\": \"completed\"\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/bookings/:booking/status", "host": ["{{base_url}}"], "path": ["business", ":business", "bookings", ":booking", "status"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "booking", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "List branch offers",
+					"request": { "method": "GET", "url": { "raw": "{{base_url}}/business/:business/offers", "host": ["{{base_url}}"], "path": ["business", ":business", "offers"], "variable": [{ "key": "business", "value": "<ULID>" }] } }
+				},
+				{
+					"name": "Create offer",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"code\": \"SAVE10\",\n  \"title\": \"Save 10%\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 10,\n  \"starts_at\": \"2026-10-01\",\n  \"expires_at\": \"2026-11-01\",\n  \"per_user_limit\": 5\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/offers", "host": ["{{base_url}}"], "path": ["business", ":business", "offers"], "variable": [{ "key": "business", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Update offer",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"title\": \"Save 15%\",\n  \"discount_value\": 15\n}" },
+						"url": { "raw": "{{base_url}}/business/:business/offers/:offer", "host": ["{{base_url}}"], "path": ["business", ":business", "offers", ":offer"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "offer", "value": "<ULID>" }] }
+					}
+				},
+				{
+					"name": "Delete offer",
+					"request": { "method": "DELETE", "url": { "raw": "{{base_url}}/business/:business/offers/:offer", "host": ["{{base_url}}"], "path": ["business", ":business", "offers", ":offer"], "variable": [{ "key": "business", "value": "<ULID>" }, { "key": "offer", "value": "<ULID>" }] } }
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Dashboard overview",
+					"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/dashboard", "host": ["{{base_url}}"], "path": ["admin", "dashboard"] } }
+				},
+				{
+					"name": "Users",
+					"item": [
+						{
+							"name": "List users",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/admin/users?search=&page=1",
+									"host": ["{{base_url}}"],
+									"path": ["admin", "users"],
+									"query": [
+										{ "key": "search", "value": "" },
+										{ "key": "page", "value": "1" }
+									]
+								}
+							}
+						},
+						{
+							"name": "User detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/users/:user", "host": ["{{base_url}}"], "path": ["admin", "users", ":user"], "variable": [{ "key": "user", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Enable/disable user",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"is_active\": false\n}" },
+								"url": { "raw": "{{base_url}}/admin/users/:user/status", "host": ["{{base_url}}"], "path": ["admin", "users", ":user", "status"], "variable": [{ "key": "user", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Set roles",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"roles\": [\"owner\"]\n}" },
+								"url": { "raw": "{{base_url}}/admin/users/:user/roles", "host": ["{{base_url}}"], "path": ["admin", "users", ":user", "roles"], "variable": [{ "key": "user", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Businesses",
+					"item": [
+						{
+							"name": "List businesses",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/admin/businesses?status=active&search=",
+									"host": ["{{base_url}}"],
+									"path": ["admin", "businesses"],
+									"query": [
+										{ "key": "status", "value": "active" },
+										{ "key": "search", "value": "" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Business detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/businesses/:business", "host": ["{{base_url}}"], "path": ["admin", "businesses", ":business"], "variable": [{ "key": "business", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Change business state",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"status\": \"suspended\",\n  \"reason\": \"Policy violation\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/businesses/:business/state", "host": ["{{base_url}}"], "path": ["admin", "businesses", ":business", "state"], "variable": [{ "key": "business", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Catalog",
+					"item": [
+						{
+							"name": "List categories",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/categories", "host": ["{{base_url}}"], "path": ["admin", "categories"] } }
+						},
+						{
+							"name": "Create category",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"name\": \"Facial\",\n  \"slug\": \"facial\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/categories", "host": ["{{base_url}}"], "path": ["admin", "categories"] }
+							}
+						},
+						{
+							"name": "Update category",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"name\": \"Facial & Skin\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/categories/:category", "host": ["{{base_url}}"], "path": ["admin", "categories", ":category"], "variable": [{ "key": "category", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "List services (all)",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/services", "host": ["{{base_url}}"], "path": ["admin", "services"] } }
+						},
+						{
+							"name": "Update service",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"is_bookable\": false\n}" },
+								"url": { "raw": "{{base_url}}/admin/services/:service", "host": ["{{base_url}}"], "path": ["admin", "services", ":service"], "variable": [{ "key": "service", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Bookings",
+					"item": [
+						{
+							"name": "List bookings",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/admin/bookings?status=&date_from=&date_to=",
+									"host": ["{{base_url}}"],
+									"path": ["admin", "bookings"],
+									"query": [
+										{ "key": "status", "value": "" },
+										{ "key": "date_from", "value": "" },
+										{ "key": "date_to", "value": "" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Booking detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/bookings/:booking", "host": ["{{base_url}}"], "path": ["admin", "bookings", ":booking"], "variable": [{ "key": "booking", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Update status",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"status\": \"cancelled\",\n  \"reason\": \"Duplicate\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/bookings/:booking/status", "host": ["{{base_url}}"], "path": ["admin", "bookings", ":booking", "status"], "variable": [{ "key": "booking", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Reassign staff",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"assigned_staff_user_id\": \"<ULID>\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/bookings/:booking/staff", "host": ["{{base_url}}"], "path": ["admin", "bookings", ":booking", "staff"], "variable": [{ "key": "booking", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Payments",
+					"item": [
+						{
+							"name": "List payments",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/admin/payments?status=succeeded&gateway=esewa",
+									"host": ["{{base_url}}"],
+									"path": ["admin", "payments"],
+									"query": [
+										{ "key": "status", "value": "succeeded" },
+										{ "key": "gateway", "value": "esewa" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Payment detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/payments/:payment", "host": ["{{base_url}}"], "path": ["admin", "payments", ":payment"], "variable": [{ "key": "payment", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Refund payment",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"amount_minor\": 500000,\n  \"reason\": \"Service complaint\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/payments/:payment/refund", "host": ["{{base_url}}"], "path": ["admin", "payments", ":payment", "refund"], "variable": [{ "key": "payment", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Offers",
+					"item": [
+						{
+							"name": "List offers",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/offers", "host": ["{{base_url}}"], "path": ["admin", "offers"] } }
+						},
+						{
+							"name": "Create offer",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"code\": \"PLATFORM10\",\n  \"title\": \"Platform 10%\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 10,\n  \"starts_at\": \"2026-10-01\",\n  \"expires_at\": \"2026-12-01\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/offers", "host": ["{{base_url}}"], "path": ["admin", "offers"] }
+							}
+						},
+						{
+							"name": "Update offer",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"title\": \"Platform 15%\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/offers/:offer", "host": ["{{base_url}}"], "path": ["admin", "offers", ":offer"], "variable": [{ "key": "offer", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Expire offer",
+							"request": { "method": "POST", "url": { "raw": "{{base_url}}/admin/offers/:offer/expire", "host": ["{{base_url}}"], "path": ["admin", "offers", ":offer", "expire"], "variable": [{ "key": "offer", "value": "<ULID>" }] } }
+						}
+					]
+				},
+				{
+					"name": "Rewards",
+					"item": [
+						{
+							"name": "List configurations",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/rewards/configurations", "host": ["{{base_url}}"], "path": ["admin", "rewards", "configurations"] } }
+						},
+						{
+							"name": "Create configuration",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"points_per_rupee\": 2,\n  \"basis\": \"post_discount\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/rewards/configurations", "host": ["{{base_url}}"], "path": ["admin", "rewards", "configurations"] }
+							}
+						},
+						{
+							"name": "List reward transactions",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/rewards/transactions", "host": ["{{base_url}}"], "path": ["admin", "rewards", "transactions"] } }
+						},
+						{
+							"name": "Adjust user balance",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"delta\": 500,\n  \"reason\": \"Goodwill credit\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/users/:user/rewards/adjust", "host": ["{{base_url}}"], "path": ["admin", "users", ":user", "rewards", "adjust"], "variable": [{ "key": "user", "value": "<ULID>" }] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Reviews",
+					"item": [
+						{
+							"name": "List reviews",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/reviews", "host": ["{{base_url}}"], "path": ["admin", "reviews"] } }
+						},
+						{
+							"name": "Review detail",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/reviews/:review", "host": ["{{base_url}}"], "path": ["admin", "reviews", ":review"], "variable": [{ "key": "review", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Hide review",
+							"request": { "method": "POST", "url": { "raw": "{{base_url}}/admin/reviews/:review/hide", "host": ["{{base_url}}"], "path": ["admin", "reviews", ":review", "hide"], "variable": [{ "key": "review", "value": "<ULID>" }] } }
+						},
+						{
+							"name": "Restore review",
+							"request": { "method": "POST", "url": { "raw": "{{base_url}}/admin/reviews/:review/restore", "host": ["{{base_url}}"], "path": ["admin", "reviews", ":review", "restore"], "variable": [{ "key": "review", "value": "<ULID>" }] } }
+						}
+					]
+				},
+				{
+					"name": "Notifications & announcements",
+					"item": [
+						{
+							"name": "List notifications",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/notifications", "host": ["{{base_url}}"], "path": ["admin", "notifications"] } }
+						},
+						{
+							"name": "Mark read",
+							"request": {
+								"method": "PATCH",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"read\": true\n}" },
+								"url": { "raw": "{{base_url}}/admin/notifications/:notification/read", "host": ["{{base_url}}"], "path": ["admin", "notifications", ":notification", "read"], "variable": [{ "key": "notification", "value": "<ULID>" }] }
+							}
+						},
+						{
+							"name": "Send announcement",
+							"request": {
+								"method": "POST",
+								"header": [{ "key": "Content-Type", "value": "application/json" }],
+								"body": { "mode": "raw", "raw": "{\n  \"title\": \"Maintenance window\",\n  \"body\": \"The platform will be under maintenance on Sunday.\",\n  \"audience\": \"all\"\n}" },
+								"url": { "raw": "{{base_url}}/admin/announcements", "host": ["{{base_url}}"], "path": ["admin", "announcements"] }
+							}
+						}
+					]
+				},
+				{
+					"name": "Reports",
+					"item": [
+						{
+							"name": "Bookings report",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{base_url}}/admin/reports/bookings?date_from=2026-10-01&date_to=2026-10-31",
+									"host": ["{{base_url}}"],
+									"path": ["admin", "reports", "bookings"],
+									"query": [
+										{ "key": "date_from", "value": "2026-10-01" },
+										{ "key": "date_to", "value": "2026-10-31" }
+									]
+								}
+							}
+						},
+						{
+							"name": "Payments report",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/reports/payments", "host": ["{{base_url}}"], "path": ["admin", "reports", "payments"] } }
+						},
+						{
+							"name": "Popular services",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/reports/popular-services", "host": ["{{base_url}}"], "path": ["admin", "reports", "popular-services"] } }
+						},
+						{
+							"name": "Business performance",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/reports/business-performance", "host": ["{{base_url}}"], "path": ["admin", "reports", "business-performance"] } }
+						},
+						{
+							"name": "Reviews report",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/reports/reviews", "host": ["{{base_url}}"], "path": ["admin", "reports", "reviews"] } }
+						},
+						{
+							"name": "Offers report",
+							"request": { "method": "GET", "url": { "raw": "{{base_url}}/admin/reports/offers", "host": ["{{base_url}}"], "path": ["admin", "reports", "offers"] } }
+						}
+					]
+				},
+				{
+					"name": "Audit log",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/admin/audit-logs?action=&page=1",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "audit-logs"],
+							"query": [
+								{ "key": "action", "value": "" },
+								{ "key": "page", "value": "1" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Webhooks",
+			"item": [
+				{
+					"name": "Payment webhook",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "X-Webhook-Signature", "value": "<HMAC-SHA256 of raw body using SPA_PAYMENTS_WEBHOOK_SECRET>" }
+						],
+						"body": { "mode": "raw", "raw": "{\n  \"gateway_reference\": \"ref_01EXAMPLE\",\n  \"status\": \"succeeded\"\n}" },
+						"url": { "raw": "{{base_url}}/webhooks/payments/:gateway", "host": ["{{base_url}}"], "path": ["webhooks", "payments", ":gateway"], "variable": [{ "key": "gateway", "value": "esewa" }] }
+					}
+				}
+			]
+		}
+	]
+}
