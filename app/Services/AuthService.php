@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Jobs\SendVerificationCodeJob;
+// use App\Jobs\SendVerificationCodeJob;
 use App\Enums\VerificationType;
 use App\Models\RefreshToken;
 use App\Models\ReferralCode;
@@ -31,9 +31,12 @@ class AuthService
     // Registration + verification
     // -------------------------------------------------------------------------
 
-    public function register(array $data): User
+    /**
+     * @return array{user: User, verification: VerificationCode}
+     */
+    public function register(array $data): array
     {
-        return DB::transaction(function () use ($data): User {
+        return DB::transaction(function () use ($data): array {
             $referral = null;
             if (! empty($data['referral_code'])) {
                 $referral = $this->validateReferralCode($data['referral_code']);
@@ -62,9 +65,12 @@ class AuthService
                 ]);
             }
 
-            $this->issueVerificationCode($user, VerificationType::Registration);
+            $verification = $this->issueVerificationCode($user, VerificationType::Registration);
 
-            return $user;
+            return [
+                'user' => $user,
+                'verification' => $verification,
+            ];
         });
     }
 
@@ -133,24 +139,31 @@ class AuthService
      */
     public function rotateRefreshToken(string $plainToken): array
     {
-        $refreshToken = RefreshToken::query()
-            ->where('token_hash', hash('sha256', $plainToken))
-            ->whereNull('revoked_at')
-            ->where('expires_at', '>', now())
-            ->first();
+        $user = DB::transaction(function () use ($plainToken): User {
+            $refreshToken = RefreshToken::query()
+                ->with('user')
+                ->where('token_hash', hash('sha256', $plainToken))
+                ->whereNull('revoked_at')
+                ->where('expires_at', '>', now())
+                ->lockForUpdate()
+                ->first();
 
-        if ($refreshToken === null) {
-            throw new ApiException(ErrorCode::Unauthenticated, 'Refresh token is invalid or expired.');
-        }
+            if ($refreshToken === null) {
+                throw new ApiException(ErrorCode::Unauthenticated, 'Refresh token is invalid or expired.');
+            }
 
-        $user = $refreshToken->user;
+            $user = $refreshToken->user;
 
-        if (! $user->is_active) {
-            throw new ApiException(ErrorCode::AccountDisabled, 'This account has been deactivated.');
-        }
+            if (! $user->is_active) {
+                throw new ApiException(ErrorCode::AccountDisabled, 'This account has been deactivated.');
+            }
 
-        DB::transaction(function () use ($refreshToken): void {
-            $refreshToken->forceFill(['rotated_at' => now(), 'revoked_at' => now()])->save();
+            $refreshToken->forceFill([
+                'rotated_at' => now(),
+                'revoked_at' => now(),
+            ])->save();
+
+            return $user;
         });
 
         return $this->issueTokens($user, 'refresh');

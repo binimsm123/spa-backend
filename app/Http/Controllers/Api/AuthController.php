@@ -15,7 +15,6 @@ use App\Http\Requests\Auth\PasswordVerifyRequest;
 use App\Http\Requests\Auth\RefreshRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\VerifyRegistrationRequest;
-use App\Http\Resources\UserResource;
 use App\Services\AuthService;
 use App\Support\ApiResponse;
 use App\Models\User;
@@ -34,21 +33,16 @@ class AuthController extends Controller
 
     public function register(RegisterRequest $request): JsonResponse
     {
-        $user = $this->auth->register($request->validated());
-
-        $verification = VerificationCode::query()
-            ->where('user_id', $user->getKey())
-            ->where('type', \App\Enums\VerificationType::Registration->value)
-            ->latest()
-            ->first();
+        $data = $request->validated();
+        ['user' => $user, 'verification' => $verification] = $this->auth->register($data);
 
         return $this->success(
             [
                 'verification_id' => $verification?->getKey(),
-                'delivery_method' => $request->validated('delivery_method', 'sms'),
+                'delivery_method' => $data['delivery_method'] ?? 'sms',
                 'masked_destination' => $this->maskMobile($user->mobile),
                 'expires_in' => $verification ? max(0, now()->diffInSeconds($verification->expires_at, false)) : 600,
-                'referral_applied' => filled($request->validated('referral_code')),
+                'referral_applied' => filled($data['referral_code'] ?? null),
             ],
             'Verification code sent.',
             Response::HTTP_CREATED,
@@ -57,12 +51,13 @@ class AuthController extends Controller
 
     public function verifyRegistration(VerifyRegistrationRequest $request): JsonResponse
     {
-        $verification = $request->validated('verification_id')
-            ? VerificationCode::query()->with('user')->findOrFail($request->validated('verification_id'))
+        $data = $request->validated();
+        $verification = ! empty($data['verification_id'])
+            ? VerificationCode::query()->with('user')->findOrFail($data['verification_id'])
             : null;
-        $user = $verification?->user ?? User::query()->findOrFail($request->validated('user_id'));
+        $user = $verification?->user ?? User::query()->findOrFail($data['user_id']);
 
-        $tokens = $this->auth->verifyRegistration($user, $request->validated('code'));
+        $tokens = $this->auth->verifyRegistration($user, $data['code']);
 
         return $this->success($this->tokenPayload($tokens, true), 'Account verified successfully.');
     }
