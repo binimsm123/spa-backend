@@ -12,13 +12,11 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('business_id')->constrained('businesses')->cascadeOnDelete();
             $table->foreignUlid('category_id')->nullable()->constrained('categories')->nullOnDelete();
-            $table->foreignUlid('default_location_id')->nullable()->constrained('business_locations')->nullOnDelete();
             $table->string('name');
             $table->string('slug');
             $table->string('search_name')->nullable();
             $table->text('description')->nullable();
             $table->string('image_path')->nullable();
-            $table->unsignedInteger('duration_minutes')->default(60);
             $table->unsignedInteger('max_people')->default(1);
             $table->boolean('is_bookable')->default(true)->index();
             $table->string('status')->default('active')->index();

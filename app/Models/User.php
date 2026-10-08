@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Enums\BusinessUserRole;
 use App\Models\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -18,7 +17,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, HasRoles, HasUlid, BaseNotifiable, SoftDeletes;
+    use BaseNotifiable, HasApiTokens, HasFactory, HasRoles, HasUlid, SoftDeletes;
 
     protected $fillable = [
         'mobile',
@@ -27,7 +26,10 @@ class User extends Authenticatable
         'display_name',
         'image',
         'timezone',
-        'selected_location_id',
+        'address',
+        'city',
+        'latitude',
+        'longitude',
         'is_active',
         'reward_points',
         'mobile_verified_at',
@@ -36,7 +38,6 @@ class User extends Authenticatable
 
     protected $hidden = [
         'password',
-        'selected_location_id',
     ];
 
     protected function casts(): array
@@ -69,16 +70,6 @@ class User extends Authenticatable
     public function activeBusinessMemberships(): HasMany
     {
         return $this->businessMemberships()->where('is_active', true);
-    }
-
-    public function selectedLocation(): BelongsTo
-    {
-        return $this->belongsTo(Location::class, 'selected_location_id');
-    }
-
-    public function userLocations(): HasMany
-    {
-        return $this->hasMany(UserLocation::class);
     }
 
     public function bookings(): HasMany

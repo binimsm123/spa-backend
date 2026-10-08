@@ -7,8 +7,8 @@ use App\Http\Resources\CategoryResource;
 use App\Http\Resources\ServiceResource;
 use App\Models\Category;
 use App\Models\Service;
-use App\Support\AuditLogger;
 use App\Support\ApiResponse;
+use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -62,7 +62,7 @@ class AdminCatalogController extends Controller
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
 
         $query = Service::query()
-            ->with(['business', 'category'])
+            ->with(['business', 'category', 'currentPrices'])
             ->when($request->query('q'), function ($q, $search): void {
                 $like = '%'.strtolower($search).'%';
                 $q->where(fn ($w) => $w->whereRaw('LOWER(name) LIKE ?', [$like])->orWhereRaw('LOWER(search_name) LIKE ?', [$like]));
@@ -87,6 +87,6 @@ class AdminCatalogController extends Controller
 
         AuditLogger::record($request->user(), 'service.updated', 'service', $service->getKey(), $before, $service->only(['is_bookable', 'status', 'max_people']));
 
-        return $this->resource(ServiceResource::make($service->refresh()), 'Service updated.');
+        return $this->resource(ServiceResource::make($service->refresh()->load('currentPrices')), 'Service updated.');
     }
 }

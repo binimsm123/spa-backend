@@ -1,8 +1,9 @@
 <?php
 
+use App\Enums\NotificationType;
 use App\Models\Notification;
 use App\Models\Offer;
-use App\Models\OfferRedemption;
+use App\Services\NotificationService;
 
 it('returns the home catalog with categories and services', function (): void {
     [$user] = actingAsCustomer();
@@ -12,17 +13,20 @@ it('returns the home catalog with categories and services', function (): void {
         ->getJson('/api/v1/home')
         ->assertOk()
         ->assertJsonPath('success', true)
-        ->assertJsonStructure(['data' => ['user', 'categories', 'services', 'unread_notifications']]);
+        ->assertJsonStructure(['data' => ['user', 'categories', 'unread_notification_count']]);
 });
 
 it('searches businesses by name and filters empties as successful responses', function (): void {
     [$user] = actingAsCustomer();
-    createBusinessWithService(['name' => 'Zen Garden Spa']);
+    [$business] = createBusinessWithService(['name' => 'Zen Garden Spa']);
+    createBusinessWithService(['name' => 'Unrelated Spa']);
 
     $this->actingAs($user, 'sanctum')
-        ->getJson('/api/v1/businesses?q=zen')
+        ->getJson('/api/v1/businesses?q=ZeN')
         ->assertOk()
-        ->assertJsonPath('success', true);
+        ->assertJsonPath('success', true)
+        ->assertJsonCount(1, 'data.items')
+        ->assertJsonPath('data.items.0.id', $business->getKey());
 
     $empty = $this->actingAs($user, 'sanctum')
         ->getJson('/api/v1/businesses?q=nonexistent-term-xyz')
@@ -46,7 +50,7 @@ it('hides non-online businesses from discovery', function (): void {
 
 it('validates and redeems offers once per user, then blocks duplicates', function (): void {
     [$user] = actingAsCustomer();
-    [, , $service] = createBusinessWithService();
+    [, $service] = createBusinessWithService();
 
     $offer = Offer::query()->create([
         'code' => 'ONCE',
@@ -105,9 +109,9 @@ it('returns referral code and channel share payloads', function (): void {
 it('creates, filters, and toggles notification read state', function (): void {
     [$user] = actingAsCustomer();
 
-    app(\App\Services\NotificationService::class)->notify(
+    app(NotificationService::class)->notify(
         $user,
-        \App\Enums\NotificationType::Booking,
+        NotificationType::Booking,
         'Booking request received',
         'Your request was sent.',
         ['booking_request_id' => 'abc'],

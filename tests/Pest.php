@@ -1,18 +1,29 @@
 <?php
 
-pest()->extend(Tests\TestCase::class)
-    ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
+use App\Models\Business;
+use App\Models\BusinessHour;
+use App\Models\Service;
+use App\Models\ServicePrice;
+use App\Models\User;
+use App\Models\VerificationCode;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+pest()->extend(TestCase::class)
+    ->use(RefreshDatabase::class)
     ->in('Feature', 'Unit');
 
 beforeEach(function (): void {
     $GLOBALS['test_verification_codes'] = [];
-    Illuminate\Support\Facades\Http::fake([
+    Http::fake([
         'https://api.sparrowsms.com/*' => function ($request) {
             if (preg_match('/\b(\d{4})\b/', (string) $request['text'], $matches)) {
                 $GLOBALS['test_verification_codes'][] = $matches[1];
             }
 
-            return Illuminate\Http\Client\Response::fake(['count' => 1, 'response_code' => 200, 'response' => 'queued']);
+            return Response::fake(['count' => 1, 'response_code' => 200, 'response' => 'queued']);
         },
     ]);
 });
@@ -37,8 +48,8 @@ if (! function_exists('registerCustomer')) {
 
         $response = test()->postJson('/api/v1/auth/register', $payload);
         $verificationId = $response->json('data.verification_id');
-        $userId = \App\Models\VerificationCode::query()->findOrFail($verificationId)->user_id;
-        $user = \App\Models\User::query()->findOrFail($userId);
+        $userId = VerificationCode::query()->findOrFail($verificationId)->user_id;
+        $user = User::query()->findOrFail($userId);
         $code = last_test_sms_code();
 
         $verify = test()->postJson('/api/v1/auth/register/verify', ['verification_id' => $verificationId, 'code' => $code]);
@@ -57,6 +68,7 @@ if (! function_exists('last_test_sms_code')) {
     function last_test_sms_code(): string
     {
         $codes = $GLOBALS['test_verification_codes'] ?? [];
+
         return (string) (array_pop($codes) ?: config('spa.auth.static_verification_code', '1234'));
     }
 }
@@ -73,9 +85,9 @@ if (! function_exists('actingAsCustomer')) {
 }
 
 if (! function_exists('actingAsSuperadmin')) {
-    function actingAsSuperadmin(): \App\Models\User
+    function actingAsSuperadmin(): User
     {
-        $admin = \App\Models\User::query()->create([
+        $admin = User::query()->create([
             'mobile' => '+97798'.random_int(1000000, 9999999),
             'display_name' => 'Admin',
             'password' => 'AdminPass#1',
@@ -92,28 +104,22 @@ if (! function_exists('actingAsSuperadmin')) {
 
 if (! function_exists('createBusinessWithService')) {
     /**
-     * Create an active online business with a branch, hours, service, and current price.
+     * Create an active online business with hours, service, and current price.
      */
     function createBusinessWithService(array $overrides = []): array
     {
-        $business = \App\Models\Business::query()->create([
+        $business = Business::query()->create([
             'name' => $overrides['name'] ?? 'Test Spa',
-            'slug' => $overrides['slug'] ?? 'test-spa-'.Str::lower(\Illuminate\Support\Str::random(6)),
+            'slug' => $overrides['slug'] ?? 'test-spa-'.Str::lower(Illuminate\Support\Str::random(6)),
             'is_verified' => true,
             'is_online' => true,
             'status' => 'active',
-        ]);
-
-        $branch = \App\Models\BusinessLocation::query()->create([
-            'business_id' => $business->getKey(),
-            'branch_name' => 'Main Branch',
             'timezone' => 'UTC',
-            'is_active' => true,
         ]);
 
         foreach (range(0, 6) as $weekday) {
-            \App\Models\BusinessHour::query()->create([
-                'business_location_id' => $branch->getKey(),
+            BusinessHour::query()->create([
+                'business_id' => $business->getKey(),
                 'weekday' => $weekday,
                 'opens_at' => '09:00',
                 'closes_at' => '17:00',
@@ -121,24 +127,23 @@ if (! function_exists('createBusinessWithService')) {
             ]);
         }
 
-        $service = \App\Models\Service::query()->create([
+        $service = Service::query()->create([
             'business_id' => $business->getKey(),
             'name' => $overrides['service_name'] ?? 'Test Massage',
-            'slug' => 'test-massage-'.Str::lower(\Illuminate\Support\Str::random(6)),
-            'duration_minutes' => 60,
+            'slug' => 'test-massage-'.Str::lower(Illuminate\Support\Str::random(6)),
             'max_people' => 2,
             'is_bookable' => true,
             'status' => 'active',
         ]);
 
-        $price = \App\Models\ServicePrice::query()->create([
+        $price = ServicePrice::query()->create([
             'service_id' => $service->getKey(),
-            'business_location_id' => $branch->getKey(),
+            'duration' => '01:00',
             'price_minor' => 500000,
             'currency' => 'NPR',
             'is_current' => true,
         ]);
 
-        return [$business, $branch, $service, $price];
+        return [$business, $service, $price];
     }
 }

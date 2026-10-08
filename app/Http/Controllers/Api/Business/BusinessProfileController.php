@@ -2,24 +2,45 @@
 
 namespace App\Http\Controllers\Api\Business;
 
+use App\Enums\BusinessUserRole;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Business\UpsertBranchRequest;
+use App\Http\Requests\Business\RegisterBusinessRequest;
 use App\Http\Requests\Business\UpsertBusinessRequest;
-use App\Http\Resources\BusinessLocationResource;
 use App\Http\Resources\BusinessResource;
 use App\Models\Business;
 use App\Models\BusinessClosure;
 use App\Models\BusinessHour;
-use App\Models\BusinessLocation;
-use App\Support\ApiException;
+use App\Services\BusinessRegistrationService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BusinessProfileController extends Controller
 {
     use ApiResponse;
+
+    public function register(RegisterBusinessRequest $request, BusinessRegistrationService $registration): JsonResponse
+    {
+        $business = $registration->register($request->user(), $request->validated());
+        $data = BusinessResource::make($business)->resolve();
+        $data['kyc'] = $business->kycSummary();
+        $data['my_role'] = BusinessUserRole::Owner->value;
+        $data['user_roles'] = $request->user()->getRoleNames();
+
+        return $this->created($data, 'Business registration submitted for verification.');
+    }
+
+    public function document(Request $request, Business $business, string $document): StreamedResponse
+    {
+        $this->assertMember($request, $business, ['owner']);
+        $path = in_array($document, Business::KYC_DOCUMENT_TYPES, true) ? ($business->kyc_documents[$document] ?? null) : null;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->download($path, $document.'.'.pathinfo($path, PATHINFO_EXTENSION), ['Cache-Control' => 'private, no-store']);
+    }
 
     /**
      * GET /business/my — businesses the user manages.
@@ -29,7 +50,6 @@ class BusinessProfileController extends Controller
         $businesses = $request->user()->businesses()
             ->withPivot('role', 'is_active')
             ->wherePivot('is_active', true)
-            ->with('locations')
             ->get();
 
         return $this->success([
@@ -47,9 +67,15 @@ class BusinessProfileController extends Controller
     {
         $this->assertMember($request, $business);
 
-        $business->load(['locations.hours', 'locations.closures']);
+        $business->load(['hours', 'closures']);
 
-        return $this->resource(BusinessResource::make($business));
+        $data = BusinessResource::make($business)->resolve();
+
+        if ($request->user()->hasBusinessRole($business, BusinessUserRole::Owner)) {
+            $data['kyc'] = $business->kycSummary();
+        }
+
+        return $this->success($data);
     }
 
     public function update(UpsertBusinessRequest $request, Business $business): JsonResponse
@@ -66,41 +92,9 @@ class BusinessProfileController extends Controller
         return $this->resource(BusinessResource::make($business->refresh()), 'Business updated.');
     }
 
-    public function storeBranch(UpsertBranchRequest $request, Business $business): JsonResponse
-    {
-        $this->assertMember($request, $business, ['owner', 'manager']);
-
-        /** @var BusinessLocation $branch */
-        $branch = $business->locations()->create($request->validated());
-
-        // Default: open 10:00-19:00 Mon-Sat, closed Sunday.
-        foreach (range(0, 6) as $weekday) {
-            BusinessHour::query()->create([
-                'business_location_id' => $branch->getKey(),
-                'weekday' => $weekday,
-                'opens_at' => $weekday === 0 ? null : '10:00',
-                'closes_at' => $weekday === 0 ? null : '19:00',
-                'is_closed' => $weekday === 0,
-            ]);
-        }
-
-        return $this->resource(BusinessLocationResource::make($branch), 'Branch created.', 201);
-    }
-
-    public function updateBranch(UpsertBranchRequest $request, Business $business, BusinessLocation $branch): JsonResponse
-    {
-        $this->assertMember($request, $business, ['owner', 'manager']);
-        abort_unless($branch->business_id === $business->getKey(), 404);
-
-        $branch->fill($request->validated())->save();
-
-        return $this->resource(BusinessLocationResource::make($branch->refresh()), 'Branch updated.');
-    }
-
-    public function updateHours(Request $request, Business $business, BusinessLocation $branch): JsonResponse
+    public function updateHours(Request $request, Business $business): JsonResponse
     {
         $this->assertMember($request, $business, ['owner', 'manager', 'staff']);
-        abort_unless($branch->business_id === $business->getKey(), 404);
 
         $data = $request->validate([
             'hours' => ['required', 'array', 'size:7'],
@@ -110,10 +104,10 @@ class BusinessProfileController extends Controller
             'hours.*.is_closed' => ['required', 'boolean'],
         ]);
 
-        DB::transaction(function () use ($data, $branch): void {
+        DB::transaction(function () use ($data, $business): void {
             foreach ($data['hours'] as $row) {
                 BusinessHour::query()->updateOrCreate(
-                    ['business_location_id' => $branch->getKey(), 'weekday' => $row['weekday']],
+                    ['business_id' => $business->getKey(), 'weekday' => $row['weekday']],
                     [
                         'opens_at' => $row['is_closed'] ? null : $row['opens_at'] ?? null,
                         'closes_at' => $row['is_closed'] ? null : $row['closes_at'] ?? null,
@@ -123,10 +117,10 @@ class BusinessProfileController extends Controller
             }
         });
 
-        $branch->refresh()->load('hours');
+        $business->refresh()->load('hours');
 
         return $this->success([
-            'hours' => $branch->hours->map(fn (BusinessHour $h) => [
+            'hours' => $business->hours->map(fn (BusinessHour $h) => [
                 'weekday' => (int) $h->weekday,
                 'opens_at' => $h->opens_at?->format('H:i'),
                 'closes_at' => $h->closes_at?->format('H:i'),
@@ -135,10 +129,9 @@ class BusinessProfileController extends Controller
         ], 'Opening hours updated.');
     }
 
-    public function addClosures(Request $request, Business $business, BusinessLocation $branch): JsonResponse
+    public function addClosures(Request $request, Business $business): JsonResponse
     {
         $this->assertMember($request, $business, ['owner', 'manager', 'staff']);
-        abort_unless($branch->business_id === $business->getKey(), 404);
 
         $data = $request->validate([
             'closures' => ['required', 'array', 'min:1'],
@@ -148,29 +141,29 @@ class BusinessProfileController extends Controller
         ]);
 
         $created = collect($data['closures'])
-            ->map(fn (array $row) => BusinessClosure::query()->create($row + ['business_location_id' => $branch->getKey()]));
+            ->map(fn (array $row) => BusinessClosure::query()->create($row + ['business_id' => $business->getKey()]));
 
         return $this->success(['items' => $created->map(fn (BusinessClosure $c) => $c->only(['id', 'starts_on', 'ends_on', 'reason']))], 'Closures added.');
     }
 
-    public function removeClosure(Request $request, Business $business, BusinessLocation $branch, BusinessClosure $closure): JsonResponse
+    public function removeClosure(Request $request, Business $business, BusinessClosure $closure): JsonResponse
     {
         $this->assertMember($request, $business, ['owner', 'manager', 'staff']);
-        abort_unless($branch->business_id === $business->getKey() && $closure->business_location_id === $branch->getKey(), 404);
+        abort_unless($closure->business_id === $business->getKey(), 404);
 
         $closure->delete();
 
         return $this->success(null, 'Closure removed.');
     }
 
-    private function assertMember(Request $request, Business $business, array $roles = null): void
+    private function assertMember(Request $request, Business $business, ?array $roles = null): void
     {
         $user = $request->user();
 
         abort_unless($user->belongsToBusiness($business), 403, 'You do not manage this business.');
 
         if ($roles !== null && ! $user->hasBusinessRole($business, ...array_map(
-            fn (string $r) => \App\Enums\BusinessUserRole::from($r),
+            fn (string $r) => BusinessUserRole::from($r),
             $roles,
         ))) {
             abort(403, 'Your role cannot perform this action.');

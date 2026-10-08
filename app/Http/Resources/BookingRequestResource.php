@@ -12,7 +12,7 @@ class BookingRequestResource extends JsonResource
         return [
             'id' => $this->id,
             'business' => new BusinessResource($this->whenLoaded('business')),
-            'business_location_id' => $this->business_location_id,
+            'business_id' => $this->business_id,
             'service' => new ServiceResource($this->whenLoaded('service')),
             'people_count' => (int) $this->people_count,
             'requested_date' => $this->requested_date?->toDateString(),

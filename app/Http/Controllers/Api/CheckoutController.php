@@ -12,10 +12,6 @@ use App\Http\Requests\Checkout\QuoteRequest;
 use App\Http\Requests\Checkout\StartCheckoutRequest;
 use App\Http\Requests\Checkout\TipCheckoutRequest;
 use App\Http\Requests\Review\SubmitReviewRequest;
-use App\Http\Resources\BookingResource;
-use App\Http\Resources\CheckoutQuoteResource;
-use App\Http\Resources\PaymentResource;
-use App\Http\Resources\ReviewResource;
 use App\Models\Booking;
 use App\Models\Business;
 use App\Models\CheckoutQuote;
@@ -28,7 +24,6 @@ use App\Support\ErrorCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckoutController extends Controller
@@ -99,7 +94,7 @@ class CheckoutController extends Controller
             throw ApiException::conflict(ErrorCode::BookingNotCompleted, 'Completion details are only available for completed appointments.');
         }
 
-        $booking->load(['items', 'business', 'businessLocation', 'payments', 'review']);
+        $booking->load(['items', 'business', 'payments', 'review']);
 
         $receiptUrl = url('/receipts/'.$booking->getKey().'?expires='.now()->addMinutes(30)->timestamp.'&signature='.hash_hmac('sha256', $booking->getKey(), config('app.key')));
 
@@ -135,7 +130,7 @@ class CheckoutController extends Controller
                 'comments' => $request->validated('comments'),
             ]);
 
-            // Update the branch read-model rating.
+            // Update the business read-model rating.
             $agg = Review::query()
                 ->where('business_id', $booking->business_id)
                 ->where('is_hidden', false)

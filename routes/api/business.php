@@ -8,18 +8,15 @@ use App\Http\Controllers\Api\Business\BusinessStaffController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(function (): void {
+    Route::get('{business}/documents/{document}', [BusinessProfileController::class, 'document'])->whereUlid('business');
     Route::get('my', [BusinessProfileController::class, 'myBusinesses']);
     Route::get('{business}', [BusinessProfileController::class, 'show'])->whereUlid('business');
     Route::patch('{business}', [BusinessProfileController::class, 'update'])->whereUlid('business');
 
-    // Branches
-    Route::post('{business}/branches', [BusinessProfileController::class, 'storeBranch'])->whereUlid('business');
-    Route::patch('{business}/branches/{branch}', [BusinessProfileController::class, 'updateBranch'])->whereUlid('business')->whereUlid('branch');
-
     // Hours + closures
-    Route::put('{business}/branches/{branch}/hours', [BusinessProfileController::class, 'updateHours'])->whereUlid('business')->whereUlid('branch');
-    Route::post('{business}/branches/{branch}/closures', [BusinessProfileController::class, 'addClosures'])->whereUlid('business')->whereUlid('branch');
-    Route::delete('{business}/branches/{branch}/closures/{closure}', [BusinessProfileController::class, 'removeClosure'])->whereUlid('business')->whereUlid('branch')->whereUlid('closure');
+    Route::put('{business}/hours', [BusinessProfileController::class, 'updateHours'])->whereUlid('business');
+    Route::post('{business}/closures', [BusinessProfileController::class, 'addClosures'])->whereUlid('business');
+    Route::delete('{business}/closures/{closure}', [BusinessProfileController::class, 'removeClosure'])->whereUlid('business')->whereUlid('closure');
 
     // Services
     Route::get('{business}/services', [BusinessServiceController::class, 'index'])->whereUlid('business');

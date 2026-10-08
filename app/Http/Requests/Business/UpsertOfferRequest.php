@@ -31,7 +31,6 @@ class UpsertOfferRequest extends FormRequest
             'total_usage_limit' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'per_user_limit' => ['sometimes', 'integer', 'min:1'],
             'service_id' => ['sometimes', 'nullable', 'ulid', 'exists:services,id'],
-            'location_id' => ['sometimes', 'nullable', 'ulid', 'exists:locations,id'],
         ];
     }
 

@@ -3,21 +3,18 @@
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\Business;
-use App\Models\BusinessLocation;
 use App\Models\CheckoutQuote;
 use App\Models\Offer;
 use App\Models\Payment;
-use App\Services\BookingService;
-use Illuminate\Support\Str;
+use App\Models\RewardConfiguration;
 
 function createPaidBooking($user): Booking
 {
-    [$business, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
     $booking = Booking::query()->create([
         'user_id' => $user->getKey(),
         'business_id' => $business->getKey(),
-        'business_location_id' => $branch->getKey(),
         'appointment_date' => now()->addDay()->toDateString(),
         'starts_at' => now()->addDay()->setTimeFromTimeString('10:00'),
         'ends_at' => now()->addDay()->setTimeFromTimeString('11:00'),
@@ -30,7 +27,7 @@ function createPaidBooking($user): Booking
     $booking->items()->create([
         'service_id' => $service->getKey(),
         'service_name_snapshot' => $service->name,
-        'duration_minutes_snapshot' => $service->duration_minutes,
+        'duration_minutes_snapshot' => $service->currentPrice->durationMinutes(),
         'max_people_snapshot' => $service->max_people,
         'unit_price_minor' => 500000,
         'currency' => 'NPR',
@@ -66,8 +63,8 @@ it('builds a checkout quote with promo discount and recalculates totals server-s
     $this->actingAs($user, 'sanctum')
         ->postJson("/api/v1/bookings/{$booking->getKey()}/checkout/quote", ['promo_code' => 'save10'])
         ->assertOk()
-        ->assertJsonPath('data.total_minor', 450000)
-        ->assertJsonPath('data.discount_minor', 50000);
+        ->assertJsonPath('data.pricing.total', 4500)
+        ->assertJsonPath('data.pricing.discount', 500);
 });
 
 it('expires quotes and rejects expired quote checkout', function (): void {
@@ -90,7 +87,7 @@ it('expires quotes and rejects expired quote checkout', function (): void {
 });
 
 it('starts a payment and confirms the booking via an idempotent webhook', function (): void {
-    \App\Models\RewardConfiguration::query()->create(['points_per_rupee' => 1, 'basis' => 'subtotal', 'is_active' => true]);
+    RewardConfiguration::query()->create(['points_per_rupee' => 1, 'basis' => 'subtotal', 'is_active' => true]);
 
     [$user] = actingAsCustomer();
     $booking = createPaidBooking($user);
@@ -107,12 +104,12 @@ it('starts a payment and confirms the booking via an idempotent webhook', functi
         ->postJson("/api/v1/bookings/{$booking->getKey()}/checkout", [
             'quote_id' => $quote->getKey(),
             'gateway' => 'khalti',
-        ])->assertCreated()->json('data');
+        ])->assertOk()->json('data');
 
     expect($booking->refresh()->status)->toBe(BookingStatus::AwaitingPayment);
 
     $secret = config('spa.payments.webhook_secret');
-    $payload = ['gateway_reference' => $payment['gateway_reference'], 'status' => 'succeeded'];
+    $payload = ['gateway_reference' => Payment::query()->findOrFail($payment['payment_id'])->gateway_reference, 'status' => 'succeeded'];
     $signature = hash_hmac('sha256', json_encode($payload), $secret);
 
     // Deliver the webhook twice: it must be idempotent.
@@ -122,7 +119,7 @@ it('starts a payment and confirms the booking via an idempotent webhook', functi
     }
 
     expect($booking->refresh()->status)->toBe(BookingStatus::Confirmed)
-        ->and(Payment::query()->whereKey($payment['id'])->first()->status->value)->toBe('succeeded');
+        ->and(Payment::query()->whereKey($payment['payment_id'])->first()->status->value)->toBe('succeeded');
 
     // Reward points awarded once.
     expect($booking->user->refresh()->reward_points)->toBeGreaterThan(0)
@@ -173,5 +170,18 @@ it('starts a tip checkout only for completed bookings', function (): void {
         ->postJson("/api/v1/bookings/{$booking->getKey()}/tip/checkout", [
             'amount_minor' => 10000,
             'gateway' => 'mypay',
-        ])->assertCreated()->assertJsonPath('success', true);
+        ])->assertOk()->assertJsonPath('success', true);
+});
+
+it('uses the business address in checkout and booking details', function (): void {
+    [$user] = actingAsCustomer();
+    $booking = createPaidBooking($user);
+    $booking->business->update(['address' => 'Street 12, Patan']);
+
+    $this->getJson("/api/v1/bookings/{$booking->getKey()}/checkout")->assertOk()
+        ->assertJsonPath('data.booking.location', 'Street 12, Patan');
+    $response = $this->getJson("/api/v1/bookings/{$booking->getKey()}")->assertOk()
+        ->assertJsonPath('data.business_id', $booking->business_id)
+        ->assertJsonPath('data.business.address', 'Street 12, Patan');
+    expect($response->json('data'))->not->toHaveKeys(['business_location_id', 'business_location']);
 });

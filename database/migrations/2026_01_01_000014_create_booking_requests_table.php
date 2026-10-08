@@ -12,7 +12,6 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
             $table->foreignUlid('business_id')->constrained('businesses')->cascadeOnDelete();
-            $table->foreignUlid('business_location_id')->constrained('business_locations')->cascadeOnDelete();
             $table->foreignUlid('service_id')->constrained('services')->cascadeOnDelete();
             $table->unsignedInteger('people_count')->default(1);
             $table->date('requested_date');

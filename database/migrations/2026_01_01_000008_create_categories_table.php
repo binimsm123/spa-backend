@@ -10,11 +10,13 @@ return new class extends Migration
     {
         Schema::create('categories', function (Blueprint $table): void {
             $table->ulid('id')->primary();
+            $table->foreignUlid('business_id')->nullable()->constrained('businesses')->cascadeOnDelete();
             $table->string('name');
             $table->string('slug')->unique();
             $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(true)->index();
             $table->timestamps();
+            $table->index(['business_id', 'is_active', 'sort_order']);
         });
     }
 

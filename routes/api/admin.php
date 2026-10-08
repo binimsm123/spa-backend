@@ -29,6 +29,7 @@ Route::middleware(['auth:sanctum', 'throttle:admin', 'permission:admin.dashboard
     Route::middleware('permission:admin.businesses.manage')->group(function (): void {
         Route::get('businesses', [AdminBusinessController::class, 'index']);
         Route::get('businesses/{business}', [AdminBusinessController::class, 'show'])->whereUlid('business');
+        Route::get('businesses/{business}/documents/{document}', [AdminBusinessController::class, 'document'])->whereUlid('business');
         Route::patch('businesses/{business}/state', [AdminBusinessController::class, 'changeState'])->whereUlid('business');
     });
 

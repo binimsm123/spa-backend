@@ -25,7 +25,7 @@ final readonly class AuthSessionData
 
         return [
             'user' => array_intersect_key($user, array_flip([
-                'id', 'mobile_number', 'mobile_verified', 'created_at',
+                'id', 'mobile_number', 'mobile_verified', 'created_at', 'roles',
             ])),
             'access_token' => $this->accessToken,
             'refresh_token' => $this->refreshToken,

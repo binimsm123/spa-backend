@@ -28,7 +28,6 @@ enum ErrorCode: string
     // Catalog / discovery
     case BusinessOffline = 'BUSINESS_OFFLINE';
     case BusinessClosed = 'BUSINESS_CLOSED';
-    case LocationUnavailable = 'LOCATION_UNAVAILABLE';
     case ServiceUnavailable = 'SERVICE_UNAVAILABLE';
     case ServiceNotBookable = 'SERVICE_NOT_BOOKABLE';
 
@@ -62,7 +61,7 @@ enum ErrorCode: string
             self::VerificationCodeExpired, self::InvalidResetToken => 401,
             self::Unauthorized, self::EmailNotVerified, self::MobileNotVerified,
             self::AccountDisabled, self::StaffNotAssigned => 403,
-            self::NotFound, self::LocationUnavailable, self::ServiceUnavailable => 404,
+            self::NotFound, self::ServiceUnavailable => 404,
             self::Conflict, self::BookingSlotConflict, self::BookingRequestExpired,
             self::BookingRequestNotAccepted, self::BookingStatusTransitionInvalid,
             self::BookingNotCompleted, self::CapacityExceeded, self::StaffDoubleBooked,

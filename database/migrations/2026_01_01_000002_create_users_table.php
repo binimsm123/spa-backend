@@ -16,7 +16,10 @@ return new class extends Migration
             $table->string('display_name');
             $table->string('avatar_path')->nullable();
             $table->string('timezone', 64)->default('Asia/Kathmandu');
-            $table->foreignUlid('selected_location_id')->nullable()->constrained('locations')->nullOnDelete();
+            $table->string('address')->nullable();
+            $table->string('city', 120)->nullable()->index();
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
             $table->boolean('is_active')->default(true);
             $table->unsignedBigInteger('reward_points_balance')->default(0);
             $table->timestamp('mobile_verified_at')->nullable();

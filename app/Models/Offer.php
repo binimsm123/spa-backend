@@ -17,7 +17,6 @@ class Offer extends Model
     protected $fillable = [
         'business_id',
         'service_id',
-        'location_id',
         'created_by_user_id',
         'is_platform_sponsored',
         'code',

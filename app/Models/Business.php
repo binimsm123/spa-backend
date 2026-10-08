@@ -12,42 +12,67 @@ class Business extends Model
 {
     use HasFactory, HasUlid, SoftDeletes;
 
+    public const KYC_DOCUMENT_TYPES = [
+        'vat_pan_document',
+        'business_registration_document',
+        'local_registration_document',
+        'owner_identity_front',
+        'owner_identity_back',
+    ];
+
+    protected $hidden = ['kyc_documents'];
+
     protected $fillable = [
         'name',
         'slug',
-        'search_name',
         'about',
         'hero_image_path',
         'phone_number',
         'is_verified',
-        'is_insured',
         'is_online',
         'status',
+        'address',
+        'city',
+        'latitude',
+        'longitude',
+        'timezone',
     ];
 
     protected function casts(): array
     {
         return [
+            'kyc_documents' => 'array',
             'is_verified' => 'boolean',
-            'is_insured' => 'boolean',
             'is_online' => 'boolean',
             'rating_average' => 'float',
         ];
     }
 
-    public function locations(): HasMany
+    public function kycSummary(): array
     {
-        return $this->hasMany(BusinessLocation::class);
+        return [
+            'documents' => array_keys($this->kyc_documents ?? []),
+        ];
     }
 
-    public function activeLocations(): HasMany
+    public function hours(): HasMany
     {
-        return $this->locations()->where('is_active', true);
+        return $this->hasMany(BusinessHour::class);
+    }
+
+    public function closures(): HasMany
+    {
+        return $this->hasMany(BusinessClosure::class);
     }
 
     public function services(): HasMany
     {
         return $this->hasMany(Service::class);
+    }
+
+    public function categories(): HasMany
+    {
+        return $this->hasMany(Category::class);
     }
 
     public function offers(): HasMany

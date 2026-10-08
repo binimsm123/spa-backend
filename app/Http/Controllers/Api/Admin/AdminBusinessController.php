@@ -6,29 +6,37 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BusinessStateRequest;
 use App\Http\Resources\BusinessResource;
 use App\Models\Business;
-use App\Support\AuditLogger;
 use App\Support\ApiResponse;
+use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminBusinessController extends Controller
 {
     use ApiResponse;
+
+    public function document(Business $business, string $document): StreamedResponse
+    {
+        $path = in_array($document, Business::KYC_DOCUMENT_TYPES, true) ? ($business->kyc_documents[$document] ?? null) : null;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->download($path, $document.'.'.pathinfo($path, PATHINFO_EXTENSION), ['Cache-Control' => 'private, no-store']);
+    }
 
     public function index(Request $request): JsonResponse
     {
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
 
         $query = Business::query()
-            ->with('locations')
             ->when($request->query('q'), function ($q, $search): void {
                 $like = '%'.strtolower($search).'%';
                 $q->where(fn ($w) => $w
                     ->whereRaw('LOWER(name) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(slug) LIKE ?', [$like])
-                    ->orWhereHas('locations', fn ($l) => $l
-                        ->whereRaw('LOWER(address) LIKE ?', [$like])
-                        ->orWhereRaw('LOWER(city) LIKE ?', [$like])));
+                    ->orWhereRaw('LOWER(address) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(city) LIKE ?', [$like]));
             })
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('verification') === 'verified', fn ($q) => $q->where('is_verified', true))
@@ -41,9 +49,10 @@ class AdminBusinessController extends Controller
 
     public function show(Request $request, Business $business): JsonResponse
     {
-        $business->load(['locations.hours', 'locations.closures', 'services.category', 'members']);
+        $business->load(['hours', 'closures', 'services.category', 'services.currentPrices', 'members']);
 
         $data = BusinessResource::make($business)->resolve();
+        $data['kyc'] = $business->kycSummary();
         $data['members'] = $business->members->map(fn ($u) => [
             'id' => $u->id,
             'display_name' => $u->display_name,

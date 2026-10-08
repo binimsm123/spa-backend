@@ -10,13 +10,13 @@ return new class extends Migration
     {
         Schema::create('business_closures', function (Blueprint $table): void {
             $table->ulid('id')->primary();
-            $table->foreignUlid('business_location_id')->constrained('business_locations')->cascadeOnDelete();
+            $table->foreignUlid('business_id')->constrained('businesses')->cascadeOnDelete();
             $table->date('starts_on');
             $table->date('ends_on');
             $table->string('reason')->nullable();
             $table->timestamps();
 
-            $table->index(['business_location_id', 'starts_on', 'ends_on']);
+            $table->index(['business_id', 'starts_on', 'ends_on']);
         });
     }
 

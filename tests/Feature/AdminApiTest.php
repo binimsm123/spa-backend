@@ -1,7 +1,10 @@
 <?php
 
-use App\Models\Business;
-use App\Models\User;
+use App\Models\AuditLog;
+use App\Models\Booking;
+use App\Models\Offer;
+use App\Models\Review;
+use App\Models\RewardConfiguration;
 use App\Support\AuditLogger;
 
 it('blocks non-admin users from admin routes', function (): void {
@@ -43,7 +46,7 @@ it('lists users and disables an account with audit trail', function (): void {
         ])->assertOk();
 
     expect($customer->refresh()->is_active)->toBeFalse()
-        ->and(\App\Models\AuditLog::query()->where('action', 'user.disabled')->exists())->toBeTrue();
+        ->and(AuditLog::query()->where('action', 'user.disabled')->exists())->toBeTrue();
 });
 
 it('verifies and suspends businesses with audit trail', function (): void {
@@ -63,7 +66,7 @@ it('verifies and suspends businesses with audit trail', function (): void {
         ->assertOk();
 
     expect($business->refresh()->status)->toBe('suspended')
-        ->and(\App\Models\AuditLog::query()->where('action', 'business.suspend')->exists())->toBeTrue();
+        ->and(AuditLog::query()->where('action', 'business.suspend')->exists())->toBeTrue();
 });
 
 it('creates platform-sponsored offers as admin', function (): void {
@@ -79,19 +82,18 @@ it('creates platform-sponsored offers as admin', function (): void {
             'expires_at' => now()->addWeek()->toIso8601String(),
         ])->assertCreated()->assertJsonPath('data.code', 'PLATFORM10');
 
-    expect(\App\Models\Offer::query()->where('code', 'PLATFORM10')->first()->is_platform_sponsored)->toBeTrue();
+    expect(Offer::query()->where('code', 'PLATFORM10')->first()->is_platform_sponsored)->toBeTrue();
 });
 
 it('moderates reviews by hiding and restoring', function (): void {
     $admin = actingAsSuperadmin();
     [$customer] = actingAsCustomer();
 
-    [$business, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
-    $booking = \App\Models\Booking::query()->create([
+    $booking = Booking::query()->create([
         'user_id' => $customer->getKey(),
         'business_id' => $business->getKey(),
-        'business_location_id' => $branch->getKey(),
         'appointment_date' => now()->toDateString(),
         'starts_at' => now()->addDay(),
         'ends_at' => now()->addDay()->addHour(),
@@ -102,7 +104,7 @@ it('moderates reviews by hiding and restoring', function (): void {
         'currency' => 'NPR',
     ]);
 
-    $review = \App\Models\Review::query()->create([
+    $review = Review::query()->create([
         'booking_id' => $booking->getKey(),
         'user_id' => $customer->getKey(),
         'business_id' => $business->getKey(),
@@ -127,7 +129,7 @@ it('moderates reviews by hiding and restoring', function (): void {
 it('creates a new reward configuration without overwriting history', function (): void {
     $admin = actingAsSuperadmin();
 
-    \App\Models\RewardConfiguration::query()->create(['points_per_rupee' => 1, 'basis' => 'subtotal', 'is_active' => true]);
+    RewardConfiguration::query()->create(['points_per_rupee' => 1, 'basis' => 'subtotal', 'is_active' => true]);
 
     $this->actingAs($admin, 'sanctum')
         ->postJson('/api/v1/admin/rewards/configurations', [
@@ -135,7 +137,7 @@ it('creates a new reward configuration without overwriting history', function ()
             'basis' => 'post_discount',
         ])->assertCreated();
 
-    $configs = \App\Models\RewardConfiguration::query()->orderBy('created_at')->get();
+    $configs = RewardConfiguration::query()->orderBy('created_at')->get();
 
     expect($configs)->toHaveCount(2)
         ->and($configs->first()->is_active)->toBeFalse() // old config deactivated, not overwritten
@@ -169,4 +171,19 @@ it('returns audit logs with actor details', function (): void {
         ->getJson('/api/v1/admin/audit-logs?action=test.action')
         ->assertOk()
         ->assertJsonPath('success', true);
+});
+
+it('includes current service prices in admin service lists and updates', function (): void {
+    actingAsSuperadmin();
+    [$business, $service] = createBusinessWithService();
+
+    $this->getJson('/api/v1/admin/services?business_id='.$business->getKey())->assertOk()
+        ->assertJsonPath('data.items.0.service_prices.0.duration', '01:00:00')
+        ->assertJsonPath('data.items.0.service_prices.0.price_minor', 500000)
+        ->assertJsonMissingPath('data.items.0.duration_minutes');
+
+    $this->patchJson('/api/v1/admin/services/'.$service->getKey(), ['is_bookable' => false])->assertOk()
+        ->assertJsonPath('data.service_prices.0.duration', '01:00:00')
+        ->assertJsonMissingPath('data.duration_minutes');
+    $this->assertDatabaseHas('services', ['id' => $service->getKey(), 'is_bookable' => false]);
 });

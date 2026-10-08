@@ -10,14 +10,14 @@ return new class extends Migration
     {
         Schema::create('business_hours', function (Blueprint $table): void {
             $table->ulid('id')->primary();
-            $table->foreignUlid('business_location_id')->constrained('business_locations')->cascadeOnDelete();
+            $table->foreignUlid('business_id')->constrained('businesses')->cascadeOnDelete();
             $table->unsignedTinyInteger('weekday'); // 0 = Sunday
             $table->time('opens_at')->nullable();
             $table->time('closes_at')->nullable();
             $table->boolean('is_closed')->default(false);
             $table->timestamps();
 
-            $table->unique(['business_location_id', 'weekday']);
+            $table->unique(['business_id', 'weekday']);
         });
     }
 

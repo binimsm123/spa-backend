@@ -9,7 +9,7 @@ class BusinessHour extends Model
 {
     use HasUlid;
 
-    protected $fillable = ['business_location_id', 'weekday', 'opens_at', 'closes_at', 'is_closed'];
+    protected $fillable = ['business_id', 'weekday', 'opens_at', 'closes_at', 'is_closed'];
 
     protected function casts(): array
     {
@@ -20,8 +20,8 @@ class BusinessHour extends Model
         ];
     }
 
-    public function businessLocation(): BelongsTo
+    public function business(): BelongsTo
     {
-        return $this->belongsTo(BusinessLocation::class);
+        return $this->belongsTo(Business::class);
     }
 }

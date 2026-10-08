@@ -11,17 +11,15 @@ return new class extends Migration
         Schema::create('service_prices', function (Blueprint $table): void {
             $table->ulid('id')->primary();
             $table->foreignUlid('service_id')->constrained('services')->cascadeOnDelete();
-            $table->foreignUlid('business_location_id')->constrained('business_locations')->cascadeOnDelete();
             $table->unsignedBigInteger('price_minor');
+            $table->time('duration');
             $table->char('currency', 3)->default('NPR');
-            $table->timestamp('starts_at')->nullable();
-            $table->timestamp('ends_at')->nullable();
             $table->boolean('is_current')->default(true);
             $table->timestamps();
 
             $table->index(
-                ['service_id', 'business_location_id', 'is_current', 'starts_at', 'ends_at'],
-                'service_prices_scope_dates_idx',
+                ['service_id', 'is_current', 'duration'],
+                'service_prices_service_duration_idx',
             );
         });
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Business;
 
+use App\Enums\BusinessUserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Business\UpsertServiceRequest;
 use App\Http\Resources\ServiceResource;
@@ -22,16 +23,10 @@ class BusinessServiceController extends Controller
     {
         $this->assertMember($request, $business);
 
-        $services = $business->services()->with('category')->get();
+        $services = $business->services()->with(['category', 'currentPrices'])->get();
 
-        // Attach the primary branch price for display.
-        $primary = $business->locations()->first();
-        $prices = $primary
-            ? ServicePrice::query()->where('business_location_id', $primary->getKey())->where('is_current', true)->get()->keyBy('service_id')
-            : collect();
-
-        $services->each(function (Service $service) use ($prices): void {
-            $price = $prices->get($service->getKey());
+        $services->each(function (Service $service): void {
+            $price = $service->currentPrices->first();
 
             if ($price !== null) {
                 $service->price = $price->price_minor;
@@ -49,30 +44,27 @@ class BusinessServiceController extends Controller
         $data = $request->validated();
         $priceMinor = (int) ($data['price_minor'] ?? 0);
         $currency = $data['currency'] ?? 'NPR';
-        unset($data['price_minor'], $data['currency']);
+        $duration = $data['duration'] ?? '01:00';
+        unset($data['price_minor'], $data['currency'], $data['duration']);
 
-        $service = DB::transaction(function () use ($business, $data, $priceMinor, $currency): Service {
+        $service = DB::transaction(function () use ($business, $data, $priceMinor, $currency, $duration): Service {
             /** @var Service $service */
             $service = $business->services()->create(
                 $data + ['slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(6)), 'search_name' => strtolower($data['name'])],
             );
 
-            $primary = $business->locations()->first();
-
-            if ($primary !== null) {
-                ServicePrice::query()->create([
-                    'service_id' => $service->getKey(),
-                    'business_location_id' => $primary->getKey(),
-                    'price_minor' => $priceMinor,
-                    'currency' => $currency,
-                    'is_current' => true,
-                ]);
-            }
+            ServicePrice::query()->create([
+                'service_id' => $service->getKey(),
+                'price_minor' => $priceMinor,
+                'currency' => $currency,
+                'duration' => $duration,
+                'is_current' => true,
+            ]);
 
             return $service;
         });
 
-        return $this->resource(ServiceResource::make($service->load('category')), 'Service created.', 201);
+        return $this->resource(ServiceResource::make($service->load(['category', 'currentPrices'])), 'Service created.', 201);
     }
 
     public function update(UpsertServiceRequest $request, Business $business, Service $service): JsonResponse
@@ -82,45 +74,40 @@ class BusinessServiceController extends Controller
 
         $data = $request->validated();
         $priceMinor = $data['price_minor'] ?? null;
-        $currency = $data['currency'] ?? 'NPR';
-        unset($data['price_minor'], $data['currency']);
+        $currency = $data['currency'] ?? null;
+        $duration = $data['duration'] ?? null;
+        unset($data['price_minor'], $data['currency'], $data['duration']);
 
-        DB::transaction(function () use ($service, $data, $priceMinor, $currency, $business): void {
+        DB::transaction(function () use ($service, $data, $priceMinor, $currency, $duration): void {
             $service->fill($data)->save();
 
-            if ($priceMinor !== null) {
-                $this->insertNewPrice($service, $business, (int) $priceMinor, $currency);
+            if ($priceMinor !== null || $duration !== null) {
+                $this->insertNewPrice($service, $priceMinor, $currency, $duration);
             }
         });
 
-        return $this->resource(ServiceResource::make($service->refresh()->load('category')), 'Service updated.');
+        return $this->resource(ServiceResource::make($service->refresh()->load(['category', 'currentPrices'])), 'Service updated.');
     }
 
     /**
      * Historical price rows are preserved: close the current row, insert a new one.
      * Existing bookings keep their own snapshots, so receipts never change.
      */
-    private function insertNewPrice(Service $service, Business $business, int $priceMinor, string $currency): void
+    private function insertNewPrice(Service $service, ?int $priceMinor, ?string $currency, ?string $duration = null): void
     {
-        $primary = $business->locations()->first();
-
-        if ($primary === null) {
-            return;
-        }
+        $currentPrice = $service->currentPrice;
 
         ServicePrice::query()
             ->where('service_id', $service->getKey())
-            ->where('business_location_id', $primary->getKey())
             ->where('is_current', true)
-            ->update(['is_current' => false, 'ends_at' => now()]);
+            ->update(['is_current' => false]);
 
         ServicePrice::query()->create([
             'service_id' => $service->getKey(),
-            'business_location_id' => $primary->getKey(),
-            'price_minor' => $priceMinor,
-            'currency' => $currency,
+            'price_minor' => $priceMinor ?? $currentPrice?->price_minor ?? 0,
+            'currency' => $currency ?? $currentPrice?->currency ?? 'NPR',
+            'duration' => $duration ?? $currentPrice?->duration ?? '01:00',
             'is_current' => true,
-            'starts_at' => now(),
         ]);
     }
 
@@ -131,7 +118,7 @@ class BusinessServiceController extends Controller
         abort_unless($user->belongsToBusiness($business), 403, 'You do not manage this business.');
 
         if ($roles !== null && ! $user->hasBusinessRole($business, ...array_map(
-            fn (string $r) => \App\Enums\BusinessUserRole::from($r),
+            fn (string $r) => BusinessUserRole::from($r),
             $roles,
         ))) {
             abort(403, 'Your role cannot perform this action.');

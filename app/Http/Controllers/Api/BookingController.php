@@ -10,12 +10,10 @@ use App\Http\Dto\Api\BookingRequestData;
 use App\Http\Requests\Booking\CancelBookingRequest;
 use App\Http\Requests\Booking\ConfirmBookingRequestRequest;
 use App\Http\Requests\Booking\CreateBookingRequestRequest;
-use App\Http\Resources\BookingRequestResource;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\BookingRequest;
 use App\Models\Business;
-use App\Models\BusinessLocation;
 use App\Models\Service;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
@@ -41,38 +39,37 @@ class BookingController extends Controller
      */
     public function availability(Request $request, Business $business, Service $service): JsonResponse
     {
+        abort_unless($service->business_id === $business->getKey(), 404);
         $data = $request->validate([
-            'business_location_id' => ['required', 'ulid', 'exists:business_locations,id'],
+            'business_id' => ['sometimes', 'ulid', 'in:'.$business->getKey()],
             'date' => ['required', 'date', 'after_or_equal:today'],
             'timezone' => ['nullable', 'timezone:all'],
             'days' => ['nullable', 'integer', 'between:1,14'],
         ]);
 
-        $branch = BusinessLocation::query()
-            ->where('business_id', $business->getKey())
-            ->whereKey($data['business_location_id'])
-            ->where('is_active', true)
-            ->firstOrFail();
-
         $people = (int) $request->query('people_count', 1);
         $days = (int) ($data['days'] ?? 1);
-        $timezone = $data['timezone'] ?? $branch->timezone;
+        $timezone = $data['timezone'] ?? $business->timezone;
 
         $dates = collect(range(0, $days - 1))
             ->map(fn (int $i) => Carbon::parse($data['date'], $timezone)->startOfDay()->addDays($i));
 
-        $availability = $dates->map(function (Carbon $date) use ($service, $branch, $people) {
-            $slots = $this->availability->slotsFor($service, $branch, $date, $people);
+        $availability = $dates->map(function (Carbon $date) use ($service, $business, $people) {
+            $slots = $this->availability->slotsFor($service, $business, $date, $people);
 
             return [
                 'date' => $date->toDateString(),
-                'is_closed' => $slots->isEmpty() && $this->availability->isClosureDate($branch, $date),
+                'is_closed' => $slots->isEmpty() && $this->availability->isClosureDate($business, $date),
                 'slots' => $slots->values(),
             ];
         });
 
-        $service->setAttribute('price', $service->prices()->where('is_current', true)->value('price_minor'));
-        $service->setAttribute('currency', $service->prices()->where('is_current', true)->value('currency'));
+        $price = $service->prices()
+            ->where('is_current', true)
+            ->firstOrFail();
+        $service->setAttribute('price', $price->price_minor);
+        $service->setAttribute('currency', $price->currency);
+        $service->load('currentPrices');
 
         return $this->success((new AvailabilityData($business->getKey(), $service, $timezone, $availability))->toArray(), 'Availability loaded.');
     }
@@ -140,7 +137,7 @@ class BookingController extends Controller
 
         $query = Booking::query()
             ->where('user_id', $request->user()->getKey())
-            ->with(['items', 'business', 'businessLocation', 'payments'])
+            ->with(['items', 'business', 'payments'])
             ->when($scope === 'past', fn ($q) => $q->whereIn('status', ['completed', 'cancelled', 'expired', 'refunded'])->orderByDesc('starts_at'))
             ->when($scope !== 'past', fn ($q) => $q->whereIn('status', ['awaiting_payment', 'confirmed', 'in_progress'])->orderBy('starts_at'));
 
@@ -154,7 +151,7 @@ class BookingController extends Controller
     {
         abort_unless($booking->user_id === $request->user()->getKey(), 403);
 
-        $booking->load(['items', 'business', 'businessLocation', 'payments', 'review', 'assignedStaff']);
+        $booking->load(['items', 'business', 'payments', 'review', 'assignedStaff']);
 
         return $this->resource(BookingResource::make($booking));
     }

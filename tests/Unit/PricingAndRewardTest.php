@@ -1,17 +1,13 @@
 <?php
 
-use App\Models\Business;
-use App\Models\BusinessLocation;
 use App\Models\Booking;
+use App\Models\Business;
 use App\Models\Offer;
+use App\Models\OfferRedemption;
 use App\Models\RewardConfiguration;
-use App\Models\Service;
-use App\Models\ServicePrice;
-use App\Models\User;
 use App\Services\OfferService;
 use App\Services\RewardService;
-
-use function Pest\Laravel\{artisan};
+use App\Support\ApiException;
 
 it('calculates percentage discounts with caps', function (): void {
     $offer = new Offer([
@@ -43,7 +39,6 @@ it('awards reward points and keeps the ledger consistent with the cached balance
     $booking = Booking::query()->create([
         'user_id' => $user->getKey(),
         'business_id' => Business::query()->create(['name' => 'B', 'slug' => 'b-'.Str::random(5)])->getKey(),
-        'business_location_id' => BusinessLocation::query()->create(['business_id' => Business::first()->getKey(), 'branch_name' => 'x'])->getKey(),
         'appointment_date' => now()->toDateString(),
         'starts_at' => now(),
         'ends_at' => now()->addHour(),
@@ -59,7 +54,7 @@ it('awards reward points and keeps the ledger consistent with the cached balance
 
     expect($user->reward_points)->toBe(1000);
 
-    $ledgerTotal = $user->rewardTransactions()->sum('points');
+    $ledgerTotal = (int) $user->rewardTransactions()->sum('points');
 
     expect($ledgerTotal)->toBe($user->reward_points);
 });
@@ -79,11 +74,11 @@ it('rejects reward redemption when the balance is insufficient', function (): vo
         'status' => 'active',
     ]);
 
-    $redemption = \App\Models\OfferRedemption::query()->create([
+    $redemption = OfferRedemption::query()->create([
         'offer_id' => $offer->getKey(),
         'user_id' => $user->getKey(),
         'idempotency_key' => (string) Str::ulid(),
     ]);
 
     app(RewardService::class)->spendPoints($user, 500, $redemption);
-})->throws(\App\Support\ApiException::class);
+})->throws(ApiException::class);

@@ -15,7 +15,6 @@ class BookingRequest extends Model
     protected $fillable = [
         'user_id',
         'business_id',
-        'business_location_id',
         'service_id',
         'people_count',
         'requested_date',
@@ -49,11 +48,6 @@ class BookingRequest extends Model
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);
-    }
-
-    public function businessLocation(): BelongsTo
-    {
-        return $this->belongsTo(BusinessLocation::class);
     }
 
     public function service(): BelongsTo

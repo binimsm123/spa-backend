@@ -5,8 +5,8 @@ namespace App\Models;
 use App\Models\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Service extends Model
@@ -16,13 +16,11 @@ class Service extends Model
     protected $fillable = [
         'business_id',
         'category_id',
-        'default_location_id',
         'name',
         'slug',
         'search_name',
         'description',
         'image_path',
-        'duration_minutes',
         'max_people',
         'is_bookable',
         'status',
@@ -45,21 +43,20 @@ class Service extends Model
         return $this->belongsTo(Category::class);
     }
 
-    public function defaultLocation(): BelongsTo
-    {
-        return $this->belongsTo(BusinessLocation::class, 'default_location_id');
-    }
-
     public function prices(): HasMany
     {
         return $this->hasMany(ServicePrice::class);
     }
 
-    public function locations(): BelongsToMany
+    public function currentPrices(): HasMany
     {
-        return $this->belongsToMany(BusinessLocation::class, 'business_service_locations')
-            ->withPivot('is_bookable')
-            ->using(BusinessServiceLocation::class);
+        return $this->prices()->where('is_current', true);
+    }
+
+    public function currentPrice(): HasOne
+    {
+        return $this->hasOne(ServicePrice::class)
+            ->where('is_current', true);
     }
 
     public function reviews(): HasMany

@@ -13,7 +13,6 @@ return new class extends Migration
             $table->foreignUlid('booking_request_id')->unique()->nullable()->constrained('booking_requests')->nullOnDelete();
             $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
             $table->foreignUlid('business_id')->constrained('businesses')->cascadeOnDelete();
-            $table->foreignUlid('business_location_id')->constrained('business_locations')->cascadeOnDelete();
             $table->foreignUlid('assigned_staff_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->date('appointment_date');
             $table->dateTime('starts_at');
@@ -36,7 +35,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['user_id', 'status', 'starts_at']);
-            $table->index(['business_location_id', 'status', 'starts_at']);
+            $table->index(['business_id', 'status', 'starts_at']);
             $table->index(['business_id', 'appointment_date', 'status']);
         });
     }

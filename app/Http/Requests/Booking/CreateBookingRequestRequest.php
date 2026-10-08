@@ -15,7 +15,7 @@ class CreateBookingRequestRequest extends FormRequest
     {
         return [
             'service_id' => ['required', 'ulid'],
-            'business_location_id' => ['required', 'ulid'],
+            'business_id' => ['required', 'ulid', 'exists:businesses,id'],
             'requested_date' => ['required', 'date', 'after_or_equal:today'],
             'people_count' => ['nullable', 'integer', 'min:1', 'max:20'],
             'timezone' => ['nullable', 'timezone:all'],

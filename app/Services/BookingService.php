@@ -9,7 +9,7 @@ use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\BookingRequest;
 use App\Models\BookingRequestTime;
-use App\Models\BusinessLocation;
+use App\Models\Business;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\User;
@@ -48,12 +48,7 @@ class BookingService
                 throw ApiException::conflict(ErrorCode::ServiceNotBookable, 'This service cannot be booked online.');
             }
 
-            /** @var BusinessLocation $branch */
-            $branch = BusinessLocation::query()
-                ->where('business_id', $business->getKey())
-                ->whereKey($data['business_location_id'])
-                ->where('is_active', true)
-                ->firstOrFail();
+            abort_unless($business->getKey() === $data['business_id'], 404);
 
             $requestedDate = Carbon::parse($data['requested_date'])->startOfDay();
 
@@ -71,11 +66,10 @@ class BookingService
             /** @var BookingRequest $request */
             $request = $user->bookingRequests()->create([
                 'business_id' => $business->getKey(),
-                'business_location_id' => $branch->getKey(),
                 'service_id' => $service->getKey(),
                 'people_count' => $peopleCount,
                 'requested_date' => $requestedDate,
-                'timezone' => $data['timezone'] ?? $branch->timezone,
+                'timezone' => $data['timezone'] ?? $business->timezone,
                 'status' => BookingRequestStatus::Pending->value,
                 'idempotency_key' => (string) Str::ulid(),
                 'expires_at' => now()->addHours((int) config('spa.booking.request_ttl_hours', 24)),
@@ -100,7 +94,7 @@ class BookingService
      */
     public function proposeTimes(BookingRequest $request, array $startsAtList, User $actor): BookingRequest
     {
-        return DB::transaction(function () use ($request, $startsAtList, $actor): BookingRequest {
+        return DB::transaction(function () use ($request, $startsAtList): BookingRequest {
             if ($request->status !== BookingRequestStatus::Pending) {
                 throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'Times can only be proposed for pending requests.');
             }
@@ -110,15 +104,16 @@ class BookingService
             }
 
             $service = $request->service;
-            /** @var BusinessLocation $branch */
-            $branch = $request->businessLocation;
+            /** @var Business $business */
+            $business = $request->business;
 
             $rows = [];
             foreach ($startsAtList as $startsAt) {
-                $start = Carbon::parse($startsAt, $branch->timezone);
-                $end = $start->copy()->addMinutes((int) $service->duration_minutes);
+                $start = Carbon::parse($startsAt, $business->timezone);
+                $duration = $this->resolvePrice($service)->durationMinutes();
+                $end = $start->copy()->addMinutes($duration);
 
-                if (! $this->availability->isOpenAt($branch, $start)) {
+                if (! $this->availability->isOpenAt($business, $start)) {
                     throw ApiException::validation('A proposed time is outside opening hours.', [
                         'starts_at' => ['Proposed time '.$start->format('H:i').' is outside opening hours.'],
                     ]);
@@ -177,14 +172,14 @@ class BookingService
                 throw ApiException::conflict(ErrorCode::BookingRequestNotAccepted, 'The selected time is no longer available.');
             }
 
-            /** @var BusinessLocation $branch */
-            $branch = $request->businessLocation;
+            /** @var Business $business */
+            $business = $request->business;
             $service = $request->service;
 
             // Re-check slot availability inside the transaction (race safety).
             $slots = $this->availability->slotsFor(
                 $service,
-                $branch,
+                $business,
                 Carbon::parse($request->requested_date),
                 (int) $request->people_count,
             );
@@ -194,7 +189,7 @@ class BookingService
                 throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'That time was just booked by someone else. Pick another slot.');
             }
 
-            $price = $this->resolvePrice($service, $branch);
+            $price = $this->resolvePrice($service);
             $people = (int) $request->people_count;
 
             /** @var Booking $booking */
@@ -202,11 +197,10 @@ class BookingService
                 'booking_request_id' => $request->getKey(),
                 'user_id' => $user->getKey(),
                 'business_id' => $request->business_id,
-                'business_location_id' => $branch->getKey(),
                 'appointment_date' => $time->starts_at->toDateString(),
                 'starts_at' => $time->starts_at,
                 'ends_at' => $time->ends_at,
-                'timezone' => $branch->timezone,
+                'timezone' => $business->timezone,
                 'status' => BookingStatus::AwaitingPayment->value,
                 'people_count' => $people,
                 'subtotal_minor' => $price->price_minor * $people,
@@ -222,7 +216,7 @@ class BookingService
                 'booking_id' => $booking->getKey(),
                 'service_id' => $service->getKey(),
                 'service_name_snapshot' => $service->name,
-                'duration_minutes_snapshot' => (int) $service->duration_minutes,
+                'duration_minutes_snapshot' => $price->durationMinutes(),
                 'max_people_snapshot' => (int) $service->max_people,
                 'unit_price_minor' => $price->price_minor,
                 'currency' => $price->currency,
@@ -354,18 +348,16 @@ class BookingService
     // Pricing helper
     // -------------------------------------------------------------------------
 
-    public function resolvePrice(Service $service, BusinessLocation $branch): ServicePrice
+    public function resolvePrice(Service $service): ServicePrice
     {
         /** @var ServicePrice|null $price */
         $price = ServicePrice::query()
             ->where('service_id', $service->getKey())
-            ->where('business_location_id', $branch->getKey())
             ->where('is_current', true)
-            ->orderByDesc('starts_at')
             ->first();
 
         if ($price === null) {
-            throw ApiException::conflict(ErrorCode::ServiceUnavailable, 'This service has no price at the selected branch.');
+            throw ApiException::conflict(ErrorCode::ServiceUnavailable, 'This service has no price at the business.');
         }
 
         return $price;

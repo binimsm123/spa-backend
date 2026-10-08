@@ -12,7 +12,6 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('business_id')->nullable()->constrained('businesses')->cascadeOnDelete();
             $table->foreignUlid('service_id')->nullable()->constrained('services')->cascadeOnDelete();
-            $table->foreignUlid('location_id')->nullable()->constrained('locations')->nullOnDelete();
             $table->foreignUlid('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->boolean('is_platform_sponsored')->default(false);
             $table->string('code')->unique();

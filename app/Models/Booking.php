@@ -16,7 +16,6 @@ class Booking extends Model
         'booking_request_id',
         'user_id',
         'business_id',
-        'business_location_id',
         'assigned_staff_user_id',
         'appointment_date',
         'starts_at',
@@ -71,11 +70,6 @@ class Booking extends Model
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);
-    }
-
-    public function businessLocation(): BelongsTo
-    {
-        return $this->belongsTo(BusinessLocation::class);
     }
 
     public function assignedStaff(): BelongsTo

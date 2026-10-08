@@ -16,7 +16,7 @@ class ServiceResource extends JsonResource
             'description' => $this->description,
             'image_url' => $this->image_path ? url('storage/'.$this->image_path) : null,
             'category' => new CategoryResource($this->whenLoaded('category')),
-            'duration_minutes' => (int) $this->duration_minutes,
+            'service_prices' => ServicePriceResource::collection($this->whenLoaded('currentPrices')),
             'max_people' => (int) $this->max_people,
             'is_bookable' => (bool) $this->is_bookable,
             'status' => $this->status,

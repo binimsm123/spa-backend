@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
+use App\Models\BusinessUser;
 use App\Services\BookingService;
-use App\Support\AuditLogger;
 use App\Support\ApiResponse;
+use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,7 +26,7 @@ class AdminBookingController extends Controller
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
 
         $query = Booking::query()
-            ->with(['items', 'user', 'business', 'businessLocation', 'payments', 'assignedStaff'])
+            ->with(['items', 'user', 'business', 'payments', 'assignedStaff'])
             ->when($request->query('q'), function ($q, $search): void {
                 $q->whereKey($search)->orWhereHas('user', fn ($u) => $u->where('mobile', 'like', '%'.$search.'%'))
                     ->orWhereHas('business', fn ($b) => $b->where('name', 'like', '%'.$search.'%'))
@@ -42,7 +44,7 @@ class AdminBookingController extends Controller
 
     public function show(Request $request, Booking $booking): JsonResponse
     {
-        $booking->load(['items', 'user', 'business', 'businessLocation', 'payments', 'assignedStaff', 'statusHistory.changedBy', 'review', 'offerRedemption']);
+        $booking->load(['items', 'user', 'business', 'payments', 'assignedStaff', 'statusHistory.changedBy', 'review', 'offerRedemption']);
 
         $data = BookingResource::make($booking)->resolve();
         $data['status_history'] = $booking->statusHistory->map(fn ($h) => [
@@ -64,7 +66,7 @@ class AdminBookingController extends Controller
         ]);
 
         $before = $booking->status->value;
-        $updated = $this->bookings->transitionStatus($booking, \App\Enums\BookingStatus::from($data['status']), $request->user(), $data['note'] ?? null);
+        $updated = $this->bookings->transitionStatus($booking, BookingStatus::from($data['status']), $request->user(), $data['note'] ?? null);
 
         AuditLogger::record($request->user(), 'booking.status_changed', 'booking', $booking->getKey(), ['status' => $before], ['status' => $updated->status->value], $data['note'] ?? null);
 
@@ -79,7 +81,7 @@ class AdminBookingController extends Controller
         $businessId = $booking->business_id;
 
         // The staff member must belong to the booking's business.
-        $isMember = \App\Models\BusinessUser::query()
+        $isMember = BusinessUser::query()
             ->where('business_id', $businessId)
             ->where('user_id', $staffId)
             ->where('is_active', true)

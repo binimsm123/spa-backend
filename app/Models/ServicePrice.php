@@ -11,11 +11,9 @@ class ServicePrice extends Model
 
     protected $fillable = [
         'service_id',
-        'business_location_id',
         'price_minor',
         'currency',
-        'starts_at',
-        'ends_at',
+        'duration',
         'is_current',
     ];
 
@@ -24,8 +22,6 @@ class ServicePrice extends Model
         return [
             'price_minor' => 'integer',
             'is_current' => 'boolean',
-            'starts_at' => 'datetime',
-            'ends_at' => 'datetime',
         ];
     }
 
@@ -34,8 +30,10 @@ class ServicePrice extends Model
         return $this->belongsTo(Service::class);
     }
 
-    public function businessLocation(): BelongsTo
+    public function durationMinutes(): int
     {
-        return $this->belongsTo(BusinessLocation::class);
+        [$hours, $minutes] = explode(':', (string) $this->duration);
+
+        return ((int) $hours * 60) + (int) $minutes;
     }
 }

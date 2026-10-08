@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Business;
 
 use App\Enums\BookingStatus;
+use App\Enums\BusinessUserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\UpdateBookingStatusRequest;
 use App\Http\Resources\BookingRequestResource;
@@ -10,10 +11,11 @@ use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\BookingRequest;
 use App\Models\Business;
+use App\Models\BusinessUser;
+use App\Services\BookingService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class BusinessBookingController extends Controller
 {
@@ -30,7 +32,7 @@ class BusinessBookingController extends Controller
 
         $query = BookingRequest::query()
             ->where('business_id', $business->getKey())
-            ->with(['service', 'user', 'times'])
+            ->with(['service.currentPrices', 'user', 'times'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->orderByDesc('created_at');
 
@@ -50,9 +52,9 @@ class BusinessBookingController extends Controller
             'starts_at.*' => ['required', 'date'],
         ]);
 
-        $updated = app(\App\Services\BookingService::class)->proposeTimes($bookingRequest, $data['starts_at'], $request->user());
+        $updated = app(BookingService::class)->proposeTimes($bookingRequest, $data['starts_at'], $request->user());
 
-        return $this->resource(BookingRequestResource::make($updated->load(['service', 'times'])), 'Times proposed.');
+        return $this->resource(BookingRequestResource::make($updated->load(['service.currentPrices', 'times'])), 'Times proposed.');
     }
 
     /**
@@ -65,9 +67,9 @@ class BusinessBookingController extends Controller
 
         $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
 
-        $updated = app(\App\Services\BookingService::class)->declineRequest($bookingRequest, $data['reason'] ?? null);
+        $updated = app(BookingService::class)->declineRequest($bookingRequest, $data['reason'] ?? null);
 
-        return $this->resource(BookingRequestResource::make($updated->load('service')), 'Request declined.');
+        return $this->resource(BookingRequestResource::make($updated->load('service.currentPrices')), 'Request declined.');
     }
 
     /**
@@ -81,7 +83,7 @@ class BusinessBookingController extends Controller
 
         $query = Booking::query()
             ->where('business_id', $business->getKey())
-            ->with(['items', 'user', 'businessLocation', 'payments', 'assignedStaff'])
+            ->with(['items', 'user', 'business', 'payments', 'assignedStaff'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('date'), fn ($q, $date) => $q->whereDate('appointment_date', $date))
             ->when($request->query('payment_status'), fn ($q, $ps) => $q->whereHas('payments', fn ($p) => $p->where('status', $ps)))
@@ -98,13 +100,13 @@ class BusinessBookingController extends Controller
         $this->assertMember($request, $business);
         abort_unless($booking->business_id === $business->getKey(), 404);
 
-        $service = app(\App\Services\BookingService::class);
+        $service = app(BookingService::class);
         $status = BookingStatus::from($request->validated('status'));
 
         if ($request->filled('staff_user_id')) {
             $staffId = $request->validated('staff_user_id');
 
-            $isMember = \App\Models\BusinessUser::query()
+            $isMember = BusinessUser::query()
                 ->where('business_id', $business->getKey())
                 ->where('user_id', $staffId)
                 ->where('is_active', true)
@@ -138,7 +140,7 @@ class BusinessBookingController extends Controller
         abort_unless($user->belongsToBusiness($business), 403, 'You do not manage this business.');
 
         if ($roles !== null && ! $user->hasBusinessRole($business, ...array_map(
-            fn (string $r) => \App\Enums\BusinessUserRole::from($r),
+            fn (string $r) => BusinessUserRole::from($r),
             $roles,
         ))) {
             abort(403, 'Your role cannot perform this action.');

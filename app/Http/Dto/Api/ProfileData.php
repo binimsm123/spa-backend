@@ -13,6 +13,10 @@ final readonly class ProfileData
         return [
             'id' => $this->user->getKey(),
             'display_name' => $this->user->display_name,
+            'address' => $this->user->address,
+            'city' => $this->user->city,
+            'latitude' => $this->user->latitude !== null ? (float) $this->user->latitude : null,
+            'longitude' => $this->user->longitude !== null ? (float) $this->user->longitude : null,
             'email' => $this->user->email,
             'mobile_number' => $this->user->mobile,
             'mobile_verified' => $this->user->mobile_verified_at !== null,

@@ -1,32 +1,36 @@
 <?php
 
+use App\Enums\BookingStatus;
+use App\Models\Booking;
+use App\Models\BookingRequest;
+use App\Services\AvailabilityService;
 use App\Services\BookingService;
-use Illuminate\Support\Facades\{Schema};
+use App\Support\ApiException;
 use Illuminate\Support\Str;
 
 it('returns available slots for a service and blocks past dates', function (): void {
     [$user] = actingAsCustomer();
-    [, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
     $tomorrow = now()->addDay()->toDateString();
 
-    $this->getJson("/api/v1/businesses/{$service->business_id}/services/{$service->getKey()}/availability?business_location_id={$branch->getKey()}&date={$tomorrow}&timezone=UTC", )
+    $this->getJson("/api/v1/businesses/{$service->business_id}/services/{$service->getKey()}/availability?business_id={$business->getKey()}&date={$tomorrow}&timezone=UTC")
         ->assertOk()
         ->assertJsonPath('success', true)
         ->assertJsonStructure(['data' => ['dates' => [['date', 'slots']]]]);
 
     // Past date is rejected.
-    $this->getJson("/api/v1/businesses/{$service->business_id}/services/{$service->getKey()}/availability?business_location_id={$branch->getKey()}&date=2020-01-01&timezone=UTC")
+    $this->getJson("/api/v1/businesses/{$service->business_id}/services/{$service->getKey()}/availability?business_id={$business->getKey()}&date=2020-01-01&timezone=UTC")
         ->assertStatus(422);
 });
 
 it('creates a booking request idempotently with the Idempotency-Key header', function (): void {
     [$user] = actingAsCustomer();
-    [$business, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
     $payload = [
         'service_id' => $service->getKey(),
-        'business_location_id' => $branch->getKey(),
+        'business_id' => $business->getKey(),
         'requested_date' => now()->addDay()->toDateString(),
     ];
 
@@ -40,17 +44,17 @@ it('creates a booking request idempotently with the Idempotency-Key header', fun
         ->postJson('/api/v1/bookings/requests', $payload, ['Idempotency-Key' => $key])
         ->assertStatus(202);
 
-    expect($first->json('data.id'))->toBe($second->json('data.id'))
-        ->and(\App\Models\BookingRequest::query()->count())->toBe(1);
+    expect($first->json('data.booking_request_id'))->toBe($second->json('data.booking_request_id'))
+        ->and(BookingRequest::query()->count())->toBe(1);
 });
 
 it('runs the full request -> propose -> confirm -> booking flow', function (): void {
     [$user] = actingAsCustomer();
-    [$business, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
     $bookingRequest = app(BookingService::class)->createRequest($user, [
         'service_id' => $service->getKey(),
-        'business_location_id' => $branch->getKey(),
+        'business_id' => $business->getKey(),
         'requested_date' => now()->addDay()->toDateString(),
     ]);
 
@@ -63,20 +67,20 @@ it('runs the full request -> propose -> confirm -> booking flow', function (): v
 
     $booking = app(BookingService::class)->confirmRequest($user, $bookingRequest->refresh(), $timeId);
 
-    expect($booking->status)->toBe(\App\Enums\BookingStatus::AwaitingPayment)
+    expect($booking->status)->toBe(BookingStatus::AwaitingPayment)
         ->and($booking->subtotal_minor)->toBe(500000)
         ->and($booking->items()->count())->toBe(1)
         ->and($booking->items->first()->service_name_snapshot)->toBe($service->name);
 
     // Booking request is now confirmed; a second confirm attempt fails.
-    $this->expectException(\App\Support\ApiException::class);
+    $this->expectException(ApiException::class);
     app(BookingService::class)->confirmRequest($user, $bookingRequest->refresh(), $timeId);
 });
 
-it('detects slot conflicts between two bookings at the same branch', function (): void {
+it('detects slot conflicts between two bookings at the same business', function (): void {
     [$userA] = actingAsCustomer();
     [$userB] = actingAsCustomer();
-    [$business, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
     $serviceObj = app(BookingService::class);
     $tomorrow10 = now()->addDay()->setTimeFromTimeString('10:00')->format('Y-m-d\TH:i:s');
@@ -84,7 +88,7 @@ it('detects slot conflicts between two bookings at the same branch', function ()
     // First customer books 10:00.
     $reqA = $serviceObj->createRequest($userA, [
         'service_id' => $service->getKey(),
-        'business_location_id' => $branch->getKey(),
+        'business_id' => $business->getKey(),
         'requested_date' => now()->addDay()->toDateString(),
     ]);
     $serviceObj->proposeTimes($reqA, [$tomorrow10], $userA);
@@ -95,13 +99,13 @@ it('detects slot conflicts between two bookings at the same branch', function ()
     // Second customer requests the same day: 10:00 must not be offered again.
     $reqB = $serviceObj->createRequest($userB, [
         'service_id' => $service->getKey(),
-        'business_location_id' => $branch->getKey(),
+        'business_id' => $business->getKey(),
         'requested_date' => now()->addDay()->toDateString(),
     ]);
 
-    $slots = app(\App\Services\AvailabilityService::class)->slotsFor(
+    $slots = app(AvailabilityService::class)->slotsFor(
         $service,
-        $branch,
+        $business,
         now()->addDay()->startOfDay(),
     );
 
@@ -112,12 +116,11 @@ it('prevents customers from viewing other customers bookings', function (): void
     [$userA] = actingAsCustomer();
     [$userB] = actingAsCustomer();
 
-    [$business, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
-    $booking = \App\Models\Booking::query()->create([
+    $booking = Booking::query()->create([
         'user_id' => $userA->getKey(),
         'business_id' => $business->getKey(),
-        'business_location_id' => $branch->getKey(),
         'appointment_date' => now()->toDateString(),
         'starts_at' => now()->addDay(),
         'ends_at' => now()->addDay()->addHour(),
@@ -134,13 +137,45 @@ it('prevents customers from viewing other customers bookings', function (): void
 
 it('rejects capacity above the service max_people', function (): void {
     [$user] = actingAsCustomer();
-    [$business, $branch, $service] = createBusinessWithService();
+    [$business, $service] = createBusinessWithService();
 
     $this->actingAs($user, 'sanctum')
         ->postJson('/api/v1/bookings/requests', [
             'service_id' => $service->getKey(),
-            'business_location_id' => $branch->getKey(),
+            'business_id' => $business->getKey(),
             'requested_date' => now()->addDay()->toDateString(),
             'people_count' => 5, // max_people is 2
         ])->assertStatus(409)->assertJsonPath('success', false);
+});
+
+it('rejects booking a service under another business with 404', function (): void {
+    actingAsCustomer();
+    [$business, $service] = createBusinessWithService();
+    [$other] = createBusinessWithService();
+
+    $this->postJson('/api/v1/bookings/requests', [
+        'service_id' => $service->getKey(),
+        'business_id' => $other->getKey(),
+        'requested_date' => now()->addDay()->toDateString(),
+    ])->assertNotFound();
+    $this->assertDatabaseCount('booking_requests', 0);
+
+    $this->getJson("/api/v1/businesses/{$other->getKey()}/services/{$service->getKey()}/availability?date=".now()->addDay()->toDateString())
+        ->assertNotFound();
+});
+
+it('uses business hours and timezone for availability without a location parameter', function (): void {
+    actingAsCustomer();
+    [$business, $service] = createBusinessWithService();
+    $date = now()->addDay()->toDateString();
+    $url = "/api/v1/businesses/{$business->getKey()}/services/{$service->getKey()}/availability?date={$date}";
+
+    $this->getJson($url)->assertOk()->assertJsonPath('data.timezone', 'UTC')
+        ->assertJsonPath('data.dates.0.slots.0.starts_at', '09:00')
+        ->assertJsonPath('data.dates.0.slots.0.ends_at', '10:00')
+        ->assertJsonPath('data.service.service_prices.0.duration', '01:00:00')
+        ->assertJsonMissingPath('data.service.duration_minutes');
+
+    $business->closures()->create(['starts_on' => $date, 'ends_on' => $date]);
+    $this->getJson($url)->assertOk()->assertJsonPath('data.dates.0.is_closed', true)->assertJsonCount(0, 'data.dates.0.slots');
 });

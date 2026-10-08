@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\Business\BusinessProfileController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\MeController;
@@ -10,11 +11,14 @@ use App\Http\Controllers\Api\ReferralController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
-    // Profile + location
+    // Profile
     Route::get('users/me', [MeController::class, 'me']);
     Route::patch('users/me', [MeController::class, 'updateMe']);
     Route::get('locations', [MeController::class, 'locations']);
     Route::patch('users/me/location', [MeController::class, 'updateLocation']);
+
+    // Business registration
+    Route::post('business/register', [BusinessProfileController::class, 'register']);
 
     // Home + discovery
     Route::get('home', [HomeController::class, 'home']);

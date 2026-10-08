@@ -9,7 +9,7 @@ class BusinessClosure extends Model
 {
     use HasUlid;
 
-    protected $fillable = ['business_location_id', 'starts_on', 'ends_on', 'reason'];
+    protected $fillable = ['business_id', 'starts_on', 'ends_on', 'reason'];
 
     protected function casts(): array
     {
@@ -19,8 +19,8 @@ class BusinessClosure extends Model
         ];
     }
 
-    public function businessLocation(): BelongsTo
+    public function business(): BelongsTo
     {
-        return $this->belongsTo(BusinessLocation::class);
+        return $this->belongsTo(Business::class);
     }
 }
