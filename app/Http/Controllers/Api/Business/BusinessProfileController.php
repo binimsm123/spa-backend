@@ -10,11 +10,10 @@ use App\Http\Resources\BusinessResource;
 use App\Models\Business;
 use App\Models\BusinessClosure;
 use App\Models\BusinessHour;
-use App\Services\BusinessRegistrationService;
+use App\Services\BusinessService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -22,22 +21,24 @@ class BusinessProfileController extends Controller
 {
     use ApiResponse;
 
-    public function register(RegisterBusinessRequest $request, BusinessRegistrationService $registration): JsonResponse
+    public function __construct(private readonly BusinessService $businesses) {}
+
+    public function register(RegisterBusinessRequest $request): JsonResponse
     {
-        $business = $registration->register($request->user(), $request->validated());
+        $business = $this->businesses->register($request->user(), $request->validated());
         $data = BusinessResource::make($business)->resolve();
         $data['kyc'] = $business->kycSummary();
         $data['my_role'] = BusinessUserRole::Owner->value;
         $data['user_roles'] = $request->user()->getRoleNames();
 
-        return $this->created($data, 'Business registration submitted for verification.');
+        return $this->created($data, 'Business registration submitted for verification. It might take upto 3 days to verify!');
     }
 
     public function document(Request $request, Business $business, string $document): StreamedResponse
     {
         $this->assertMember($request, $business, ['owner']);
-        $path = in_array($document, Business::KYC_DOCUMENT_TYPES, true) ? ($business->kyc_documents[$document] ?? null) : null;
-        abort_unless($path && Storage::disk('local')->exists($path), 404);
+        $path = $this->businesses->documentPath($business, $document);
+        abort_unless($path, 404);
 
         return Storage::disk('local')->download($path, $document.'.'.pathinfo($path, PATHINFO_EXTENSION), ['Cache-Control' => 'private, no-store']);
     }
@@ -47,10 +48,7 @@ class BusinessProfileController extends Controller
      */
     public function myBusinesses(Request $request): JsonResponse
     {
-        $businesses = $request->user()->businesses()
-            ->withPivot('role', 'is_active')
-            ->wherePivot('is_active', true)
-            ->get();
+        $businesses = $this->businesses->managedBy($request->user());
 
         return $this->success([
             'items' => collect($businesses)->map(fn (Business $b) => array_merge(
@@ -67,7 +65,7 @@ class BusinessProfileController extends Controller
     {
         $this->assertMember($request, $business);
 
-        $business->load(['hours', 'closures']);
+        $business = $this->businesses->profile($business);
 
         $data = BusinessResource::make($business)->resolve();
 
@@ -82,14 +80,9 @@ class BusinessProfileController extends Controller
     {
         $this->assertMember($request, $business, ['owner', 'manager']);
 
-        $business->fill($request->validated())->save();
+        $business = $this->businesses->update($business, $request->validated());
 
-        if ($request->boolean('is_online') !== false && $request->has('is_online')) {
-            $business->is_online = $request->boolean('is_online');
-            $business->save();
-        }
-
-        return $this->resource(BusinessResource::make($business->refresh()), 'Business updated.');
+        return $this->resource(BusinessResource::make($business), 'Business updated.');
     }
 
     public function updateHours(Request $request, Business $business): JsonResponse
@@ -104,20 +97,7 @@ class BusinessProfileController extends Controller
             'hours.*.is_closed' => ['required', 'boolean'],
         ]);
 
-        DB::transaction(function () use ($data, $business): void {
-            foreach ($data['hours'] as $row) {
-                BusinessHour::query()->updateOrCreate(
-                    ['business_id' => $business->getKey(), 'weekday' => $row['weekday']],
-                    [
-                        'opens_at' => $row['is_closed'] ? null : $row['opens_at'] ?? null,
-                        'closes_at' => $row['is_closed'] ? null : $row['closes_at'] ?? null,
-                        'is_closed' => $row['is_closed'],
-                    ],
-                );
-            }
-        });
-
-        $business->refresh()->load('hours');
+        $business = $this->businesses->updateHours($business, $data['hours']);
 
         return $this->success([
             'hours' => $business->hours->map(fn (BusinessHour $h) => [
@@ -140,8 +120,7 @@ class BusinessProfileController extends Controller
             'closures.*.reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $created = collect($data['closures'])
-            ->map(fn (array $row) => BusinessClosure::query()->create($row + ['business_id' => $business->getKey()]));
+        $created = $this->businesses->addClosures($business, $data['closures']);
 
         return $this->success(['items' => $created->map(fn (BusinessClosure $c) => $c->only(['id', 'starts_on', 'ends_on', 'reason']))], 'Closures added.');
     }
@@ -151,7 +130,7 @@ class BusinessProfileController extends Controller
         $this->assertMember($request, $business, ['owner', 'manager', 'staff']);
         abort_unless($closure->business_id === $business->getKey(), 404);
 
-        $closure->delete();
+        $this->businesses->deleteClosure($closure);
 
         return $this->success(null, 'Closure removed.');
     }

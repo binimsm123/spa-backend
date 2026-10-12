@@ -29,14 +29,13 @@ class AdminBusinessController extends Controller
     {
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
 
-        $query = Business::query()
+        $query = Business::query()->with(['locations', 'categories'])
             ->when($request->query('q'), function ($q, $search): void {
                 $like = '%'.strtolower($search).'%';
                 $q->where(fn ($w) => $w
                     ->whereRaw('LOWER(name) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(slug) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(address) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(city) LIKE ?', [$like]));
+                    ->orWhereHas('locations', fn ($locations) => $locations->whereRaw('LOWER(address) LIKE ?', [$like])->orWhereRaw('LOWER(city) LIKE ?', [$like])));
             })
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('verification') === 'verified', fn ($q) => $q->where('is_verified', true))
@@ -49,10 +48,10 @@ class AdminBusinessController extends Controller
 
     public function show(Request $request, Business $business): JsonResponse
     {
-        $business->load(['hours', 'closures', 'services.category', 'services.currentPrices', 'members']);
+        $business->load(['locations', 'categories', 'hours', 'closures', 'services.category', 'services.currentPrices', 'members']);
 
         $data = BusinessResource::make($business)->resolve();
-        $data['kyc'] = $business->kycSummary();
+        $data['kyc'] = $business->kycSummary('admin.businesses.documents.show');
         $data['members'] = $business->members->map(fn ($u) => [
             'id' => $u->id,
             'display_name' => $u->display_name,

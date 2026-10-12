@@ -9,6 +9,8 @@ class BusinessResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $location = $this->locations->first();
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -18,13 +20,18 @@ class BusinessResource extends JsonResource
             'status' => $this->status,
             'is_verified' => (bool) $this->is_verified,
             'is_online' => (bool) $this->is_online,
+            'home_service' => (bool) $this->home_service,
+            'location_service' => (bool) $this->location_service,
+            'staff_number' => (int) $this->staff_number,
             'rating_average' => (float) $this->rating_average,
             'rating_count' => (int) $this->rating_count,
             'created_at' => $this->created_at?->toIso8601String(),
-            'address' => $this->address,
-            'city' => $this->city,
-            'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
-            'longitude' => $this->longitude !== null ? (float) $this->longitude : null,
+            'locations' => $this->locations->map(fn ($location) => $location->only(['id', 'business_id', 'address', 'city', 'latitude', 'longitude', 'service_availability'])),
+            'address' => $location?->address,
+            'city' => $location?->city,
+            'latitude' => $location?->latitude,
+            'longitude' => $location?->longitude,
+            'categories' => CategoryResource::collection($this->whenLoaded('categories')),
             'timezone' => $this->timezone,
             'hours' => $this->whenLoaded('hours', fn () => $this->hours->map(fn ($hour) => [
                 'weekday' => (int) $hour->weekday,

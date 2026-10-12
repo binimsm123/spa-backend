@@ -124,7 +124,7 @@ class BookingController extends Controller
             $request->validated('time_id'),
         );
 
-        return $this->success((new BookingData($booking->load(['items', 'business'])))->toArray(), 'Booking created.', Response::HTTP_CREATED);
+        return $this->success((new BookingData($booking->load(['items', 'business.locations'])))->toArray(), 'Booking created.', Response::HTTP_CREATED);
     }
 
     /**
@@ -137,7 +137,7 @@ class BookingController extends Controller
 
         $query = Booking::query()
             ->where('user_id', $request->user()->getKey())
-            ->with(['items', 'business', 'payments'])
+            ->with(['items', 'business.locations', 'payments'])
             ->when($scope === 'past', fn ($q) => $q->whereIn('status', ['completed', 'cancelled', 'expired', 'refunded'])->orderByDesc('starts_at'))
             ->when($scope !== 'past', fn ($q) => $q->whereIn('status', ['awaiting_payment', 'confirmed', 'in_progress'])->orderBy('starts_at'));
 
@@ -151,7 +151,7 @@ class BookingController extends Controller
     {
         abort_unless($booking->user_id === $request->user()->getKey(), 403);
 
-        $booking->load(['items', 'business', 'payments', 'review', 'assignedStaff']);
+        $booking->load(['items', 'business.locations', 'payments', 'review', 'assignedStaff']);
 
         return $this->resource(BookingResource::make($booking));
     }
@@ -167,6 +167,6 @@ class BookingController extends Controller
 
         $updated = $this->bookings->cancel($booking, $request->user(), $request->validated('reason'));
 
-        return $this->resource(BookingResource::make($updated->load(['items', 'business'])), 'Booking cancelled.');
+        return $this->resource(BookingResource::make($updated->load(['items', 'business.locations'])), 'Booking cancelled.');
     }
 }

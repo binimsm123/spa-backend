@@ -12,7 +12,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('type'); // App\Enums\VerificationType
-            $table->string('code_hash');
+            $table->string('code');
             $table->timestamp('expires_at');
             $table->unsignedTinyInteger('attempts')->default(0);
             $table->unsignedTinyInteger('resent_count')->default(0);

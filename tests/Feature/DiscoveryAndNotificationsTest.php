@@ -13,7 +13,7 @@ it('returns the home catalog with categories and services', function (): void {
         ->getJson('/api/v1/home')
         ->assertOk()
         ->assertJsonPath('success', true)
-        ->assertJsonStructure(['data' => ['user', 'categories', 'unread_notification_count']]);
+        ->assertJsonStructure(['data' => ['user', 'categories', 'pagination', 'unread_notification_count']]);
 });
 
 it('searches businesses by name and filters empties as successful responses', function (): void {

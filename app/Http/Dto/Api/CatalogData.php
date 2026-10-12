@@ -2,50 +2,52 @@
 
 namespace App\Http\Dto\Api;
 
-use App\Http\Resources\ServicePriceResource;
-use App\Http\Resources\UserResource;
-use App\Models\Category;
+use App\Http\Resources\BusinessCatalogResource;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 final readonly class CatalogData
 {
     public function __construct(
         private User $user,
-        private mixed $categories,
-        private mixed $services,
+        private LengthAwarePaginator|Collection $categories,
         private int $unreadCount,
     ) {}
 
     public function toArray(): array
     {
-        $servicesByCategory = collect($this->services)->groupBy('category_id');
+        $categories = $this->categories instanceof LengthAwarePaginator
+            ? $this->categories->getCollection()
+            : $this->categories;
 
-        return [
-            'user' => array_intersect_key((new UserResource($this->user))->resolve(), array_flip(['id', 'display_name', 'mobile_number', 'avatar_url'])),
-            'unread_notification_count' => $this->unreadCount,
-            'location' => [
+        $data = [
+            'user' => [
+                'id' => $this->user->id,
+                'display_name' => $this->user->display_name,
+                'mobile_number' => $this->user->mobile,
+                'roles' => $this->user->getRoleNames()->values()->all(),
+                'avatar_url' => $this->user->image ? url('storage/'.$this->user->image) : null,
                 'address' => $this->user->address,
                 'city' => $this->user->city,
                 'latitude' => $this->user->latitude !== null ? (float) $this->user->latitude : null,
                 'longitude' => $this->user->longitude !== null ? (float) $this->user->longitude : null,
             ],
+            'unread_notification_count' => $this->unreadCount,
             'banner' => null,
-            'categories' => collect($this->categories)->map(fn (Category $category) => [
-                'id' => $category->id,
-                'name' => $category->name,
-                'services' => $servicesByCategory->get($category->id, collect())->map(fn ($service) => [
-                    'id' => $service->id,
-                    'provider_id' => $service->business_id,
-                    'provider_name' => $service->business?->name,
-                    'name' => $service->name,
-                    'description' => $service->description,
-                    'image_url' => $service->image_path ? url('storage/'.$service->image_path) : null,
-                    'price' => (int) ($service->price ?? 0),
-                    'currency' => $service->currency ?? 'NPR',
-                    'service_prices' => ServicePriceResource::collection($service->currentPrices)->resolve(),
-                    'bookable' => (bool) $service->is_bookable,
-                ])->values()->all(),
-            ])->values()->all(),
+            'categories' => BusinessCatalogResource::categoryListing($categories),
         ];
+
+        if ($this->categories instanceof LengthAwarePaginator) {
+            $data['pagination'] = [
+                'page' => $this->categories->currentPage(),
+                'per_page' => $this->categories->perPage(),
+                'total' => $this->categories->total(),
+                'total_pages' => $this->categories->lastPage(),
+                'has_more' => $this->categories->hasMorePages(),
+            ];
+        }
+
+        return $data;
     }
 }

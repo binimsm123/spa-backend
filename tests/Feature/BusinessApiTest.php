@@ -4,6 +4,9 @@ use App\Models\BusinessUser;
 use App\Models\Offer;
 use App\Models\ServicePrice;
 use App\Services\AvailabilityService;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 function createBusinessOwner(): array
@@ -53,11 +56,20 @@ it('updates business profile and online state', function (): void {
     $this->actingAs($owner, 'sanctum')
         ->patchJson("/api/v1/business/{$business->getKey()}", [
             'about' => 'Updated about text.',
+            'home_service' => true,
+            'location_service' => false,
+            'staff_number' => 8,
             'is_online' => false,
-        ])->assertOk();
+        ])->assertOk()
+        ->assertJsonPath('data.home_service', true)
+        ->assertJsonPath('data.location_service', false)
+        ->assertJsonPath('data.staff_number', 8);
 
     expect($business->refresh()->about)->toBe('Updated about text.')
-        ->and($business->is_online)->toBeFalse();
+        ->and($business->is_online)->toBeFalse()
+        ->and($business->home_service)->toBeTrue()
+        ->and($business->location_service)->toBeFalse()
+        ->and($business->staff_number)->toBe(8);
 });
 
 it('updates weekly hours for a business', function (): void {
@@ -136,7 +148,7 @@ it('manages business offers with usage counters', function (): void {
     expect(Offer::query()->find($offerId)->status->value)->toBe('paused');
 });
 
-it('stores location details directly on the business profile', function (): void {
+it('stores business profile location details in business locations', function (): void {
     [$owner, $business] = createBusinessOwner();
 
     $payload = [
@@ -149,7 +161,8 @@ it('stores location details directly on the business profile', function (): void
 
     $this->actingAs($owner, 'sanctum')->patchJson("/api/v1/business/{$business->getKey()}", $payload)
         ->assertOk()->assertJsonPath('data.address', 'Street 12')->assertJsonPath('data.timezone', 'Asia/Kathmandu');
-    $this->assertDatabaseHas('businesses', ['id' => $business->getKey(), ...$payload]);
+    $this->assertDatabaseHas('business_locations', ['business_id' => $business->getKey(), ...Arr::except($payload, ['timezone'])]);
+    $this->assertDatabaseHas('businesses', ['id' => $business->getKey(), 'timezone' => 'Asia/Kathmandu']);
 
     $response = $this->getJson("/api/v1/business/{$business->getKey()}")->assertOk()
         ->assertJsonCount(7, 'data.hours')->assertJsonPath('data.city', 'Lalitpur');
@@ -225,4 +238,137 @@ it('returns current service prices with duration on create update list and detai
     expect($service['service_prices'])->toHaveCount(1);
     expect($service['service_prices'][0]['duration'])->toBe('01:30:00');
     expect($service)->not->toHaveKey('duration_minutes');
+});
+
+it('rejects invalid service options and staff counts', function (string $field, mixed $value): void {
+    [$owner, $business] = createBusinessOwner();
+
+    $this->actingAs($owner, 'sanctum')->patchJson('/api/v1/business/'.$business->getKey(), [$field => $value])
+        ->assertUnprocessable()->assertJsonValidationErrors([$field]);
+
+    expect($business->refresh()->staff_number)->toBe(0)
+        ->and($business->home_service)->toBeFalse()
+        ->and($business->location_service)->toBeTrue();
+})->with([
+    'invalid home service' => ['home_service', 'yes'],
+    'invalid location service' => ['location_service', 'yes'],
+    'negative staff count' => ['staff_number', -1],
+    'fractional staff count' => ['staff_number', 1.5],
+    'overflowing staff count' => ['staff_number', 2147483648],
+]);
+
+it('hides inactive memberships and blocks their access to business profiles', function (): void {
+    [$owner, $business] = createBusinessOwner();
+    BusinessUser::query()->where('business_id', $business->id)->where('user_id', $owner->id)->update(['is_active' => false]);
+
+    $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/my')
+        ->assertOk()->assertJsonCount(0, 'data.items');
+    $this->getJson('/api/v1/business/'.$business->id)->assertForbidden();
+    $this->patchJson('/api/v1/business/'.$business->id, ['name' => 'Unauthorized Change'])->assertForbidden();
+    $this->assertDatabaseHas('businesses', ['id' => $business->id, 'name' => $business->name]);
+});
+
+it('preserves profile update permissions for managers and staff', function (string $role, int $expectedStatus): void {
+    [, $business] = createBusinessOwner();
+    [$member] = actingAsCustomer();
+    BusinessUser::query()->create(['business_id' => $business->id, 'user_id' => $member->id, 'role' => $role, 'is_active' => true]);
+
+    $this->actingAs($member, 'sanctum')->getJson('/api/v1/business/'.$business->id)
+        ->assertOk()->assertJsonMissingPath('data.kyc');
+    $this->patchJson('/api/v1/business/'.$business->id, ['name' => 'Updated Wellness Spa'])->assertStatus($expectedStatus);
+    $this->assertDatabaseHas('businesses', [
+        'id' => $business->id,
+        'name' => $expectedStatus === 200 ? 'Updated Wellness Spa' : $business->name,
+    ]);
+})->with([
+    'manager can update' => ['manager', 200],
+    'staff cannot update' => ['staff', 403],
+]);
+
+it('replaces the business image and individual KYC uploads before verification', function (bool $nested): void {
+    Storage::fake('public');
+    Storage::fake('local');
+    [$owner, $business] = createBusinessOwner();
+    $oldImage = 'business-images/'.$business->id.'/old.jpg';
+    $oldDocument = 'business-kyc/'.$business->id.'/old.pdf';
+    $retainedDocument = 'business-kyc/'.$business->id.'/identity.jpg';
+    Storage::disk('public')->put($oldImage, 'old image');
+    Storage::disk('local')->put($oldDocument, 'old document');
+    Storage::disk('local')->put($retainedDocument, 'identity');
+    $business->forceFill(['is_verified' => false])->save();
+    $business->forceFill(['hero_image_path' => $oldImage, 'kyc_documents' => [
+        'vat_pan_document' => $oldDocument, 'owner_identity_front' => $retainedDocument,
+    ]])->save();
+    $document = UploadedFile::fake()->create('pan.pdf', 100, 'application/pdf');
+
+    $response = $this->actingAs($owner, 'sanctum')->post('/api/v1/business/'.$business->id, [
+        '_method' => 'PATCH', 'hero_image' => UploadedFile::fake()->image('spa.jpg'),
+        ...($nested ? ['kyc_documents' => ['vat_pan_document' => $document]] : ['vat_pan_document' => $document]),
+    ], ['Accept' => 'application/json'])->assertOk();
+
+    $business->refresh();
+    $response->assertJsonPath('data.hero_image_url', url('storage/'.$business->hero_image_path));
+    Storage::disk('public')->assertExists($business->hero_image_path);
+    Storage::disk('public')->assertMissing($oldImage);
+    Storage::disk('local')->assertExists($business->kyc_documents['vat_pan_document']);
+    Storage::disk('local')->assertMissing($oldDocument);
+    Storage::disk('local')->assertExists($retainedDocument);
+    expect($business->kyc_documents['owner_identity_front'])->toBe($retainedDocument)
+        ->and($business->is_verified)->toBeFalse();
+})->with(['top level documents' => false, 'nested KYC documents' => true]);
+
+it('rejects KYC changes after verification without updating the profile or storing files', function (bool $nested): void {
+    Storage::fake('local');
+    Storage::fake('public');
+    [$owner, $business] = createBusinessOwner();
+    $oldName = $business->name;
+    $file = UploadedFile::fake()->create('pan.pdf', 100, 'application/pdf');
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/'.$business->id, [
+        '_method' => 'PATCH', 'name' => 'Blocked Name', 'hero_image' => UploadedFile::fake()->image('spa.jpg'),
+        ...($nested ? ['kyc_documents' => ['vat_pan_document' => $file]] : ['vat_pan_document' => $file]),
+    ], ['Accept' => 'application/json'])->assertUnprocessable()
+        ->assertJsonValidationErrors([$nested ? 'kyc_documents' : 'vat_pan_document']);
+
+    expect($business->refresh()->name)->toBe($oldName)
+        ->and($business->kyc_documents)->toBeNull();
+    expect(Storage::disk('public')->allFiles())->toBe([]);
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+})->with(['top level documents' => false, 'nested KYC documents' => true]);
+
+it('allows image replacement and removal after verification', function (): void {
+    Storage::fake('public');
+    [$owner, $business] = createBusinessOwner();
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/'.$business->id, [
+        '_method' => 'PATCH', 'hero_image' => UploadedFile::fake()->image('spa.jpg'),
+    ], ['Accept' => 'application/json'])->assertOk();
+    $path = $business->refresh()->hero_image_path;
+    Storage::disk('public')->assertExists($path);
+    expect($business->is_verified)->toBeTrue();
+
+    $this->patchJson('/api/v1/business/'.$business->id, ['hero_image_path' => null])
+        ->assertOk()->assertJsonPath('data.hero_image_url', null);
+    expect($business->refresh()->hero_image_path)->toBeNull();
+    Storage::disk('public')->assertMissing($path);
+});
+
+it('rejects invalid image and KYC update uploads without changing the business', function (): void {
+    Storage::fake('public');
+    Storage::fake('local');
+    [$owner, $business] = createBusinessOwner();
+    $business->forceFill(['is_verified' => false])->save();
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/'.$business->id, [
+        '_method' => 'PATCH',
+        'hero_image' => UploadedFile::fake()->create('spa.pdf', 100, 'application/pdf'),
+        'kyc_documents' => ['vat_pan_document' => 'client-supplied/path.pdf'],
+        'owner_identity_front' => UploadedFile::fake()->image('identity.jpg')->size(5121),
+    ], ['Accept' => 'application/json'])->assertUnprocessable()
+        ->assertJsonValidationErrors(['hero_image', 'kyc_documents.vat_pan_document', 'owner_identity_front']);
+
+    expect($business->refresh()->hero_image_path)->toBeNull()
+        ->and($business->kyc_documents)->toBeNull();
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+    expect(Storage::disk('public')->allFiles())->toBe([]);
 });

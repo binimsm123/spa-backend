@@ -7,7 +7,7 @@ use App\Http\Dto\Api\ProfileData;
 use App\Http\Requests\Profile\UpdateLocationRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
-use App\Models\Business;
+use App\Models\BusinessLocation;
 use App\Services\NotificationService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +28,8 @@ class MeController extends Controller
 
     public function locations(): JsonResponse
     {
-        $cities = Business::query()
+        $cities = BusinessLocation::query()
+            ->whereHas('business')
             ->whereNotNull('city')
             ->where('city', '!=', '')
             ->distinct()

@@ -12,9 +12,9 @@ it('matches the collection contract for the home catalog', function (): void {
         ->assertOk()
         ->assertJsonPath('message', 'Home catalog loaded.')
         ->assertJsonStructure(['data' => [
-            'user' => ['id', 'display_name', 'mobile_number', 'avatar_url'],
-            'unread_notification_count', 'location', 'banner',
-            'categories',
+            'user' => ['id', 'display_name', 'mobile_number', 'avatar_url', 'address', 'city', 'latitude', 'longitude'],
+            'unread_notification_count', 'banner',
+            'categories', 'pagination',
         ]]);
 });
 
@@ -25,8 +25,9 @@ it('lists distinct nonempty business cities in alphabetical order', function ():
         Business::query()->create([
             'name' => 'City Test Spa '.$index,
             'slug' => 'city-test-spa-'.$index,
-            'city' => $city,
         ]);
+        $business = Business::query()->where('slug', 'city-test-spa-'.$index)->firstOrFail();
+        $business->locations()->create(['city' => $city, 'service_availability' => 'on_site']);
     }
 
     $this->actingAs($user, 'sanctum')->getJson('/api/v1/locations')
@@ -65,7 +66,7 @@ it('filters the catalog by the city and address stored on each business', functi
     $user = User::factory()->create();
     [$business] = createBusinessWithService();
     [$other] = createBusinessWithService();
-    $business->update(['address' => 'Street 12', 'city' => 'Lalitpur']);
+    $business->locations()->create(['address' => 'Street 12', 'city' => 'Lalitpur', 'service_availability' => 'on_site']);
 
     $this->actingAs($user, 'sanctum')->getJson('/api/v1/businesses?city=Lalitpur&address=Street')
         ->assertOk()->assertJsonCount(1, 'data.items')->assertJsonPath('data.items.0.id', $business->getKey())
@@ -87,10 +88,10 @@ it('lists current duration and pricing under service prices in the home catalog'
     $service->prices()->create(['price_minor' => 650000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
 
     $response = $this->actingAs($user, 'sanctum')->getJson('/api/v1/home')->assertOk()
-        ->assertJsonCount(1, 'data.categories.0.services')
-        ->assertJsonCount(2, 'data.categories.0.services.0.service_prices');
-    $prices = collect($response->json('data.categories.0.services.0.service_prices'));
+        ->assertJsonCount(1, 'data.categories.0.businesses.0.services')
+        ->assertJsonCount(2, 'data.categories.0.businesses.0.services.0.service_prices');
+    $prices = collect($response->json('data.categories.0.businesses.0.services.0.service_prices'));
     expect($prices->pluck('duration')->all())->toContain('01:00:00', '01:30:00')->not->toContain('00:45:00');
     expect($prices->pluck('price_minor')->all())->toContain(500000, 650000);
-    expect($response->json('data.categories.0.services.0'))->not->toHaveKey('duration_minutes');
+    expect($response->json('data.categories.0.businesses.0.services.0'))->not->toHaveKey('duration_minutes');
 });

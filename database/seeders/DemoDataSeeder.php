@@ -56,10 +56,12 @@ class DemoDataSeeder extends Seeder
                     'name' => $name,
                     'about' => 'Relax and recharge at '.$name.'. Enjoy therapeutic massages, botanical facials, Ayurvedic rituals, and attentive care in a peaceful setting.',
                     'phone_number' => '98010000'.sprintf('%02d', $index + 1),
-                    'address' => $address, 'city' => $city,
-                    'latitude' => $latitude, 'longitude' => $longitude,
                     'timezone' => 'Asia/Kathmandu',
+                    'home_service' => $index % 2 === 0, 'location_service' => true, 'staff_number' => 1,
                     'status' => $status, 'is_verified' => $status !== 'pending', 'is_online' => $status === 'active',
+                ]);
+                $business->locations()->updateOrCreate(['service_availability' => 'on_site'], [
+                    'address' => $address, 'city' => $city, 'latitude' => $latitude, 'longitude' => $longitude,
                 ]);
                 $manager = $this->user(['Sunita', 'Prabin', 'Sabina', 'Roshan', 'Anju', 'Dipak'][$index].' '.['Rai', 'Shrestha', 'Gurung', 'Thapa', 'Karki', 'Tamang'][$index], '98300000'.sprintf('%02d', $index + 1), 'manager');
                 $staff = $this->user(['Maya', 'Amit', 'Laxmi', 'Sujan', 'Rina', 'Manoj'][$index].' '.['Tamang', 'Rai', 'Thapa', 'Maharjan', 'Gurung', 'Sharma'][$index], '98400000'.sprintf('%02d', $index + 1), 'staff');
@@ -118,10 +120,12 @@ class DemoDataSeeder extends Seeder
     {
         $categories = [];
         foreach (['Massage Therapy', 'Facial & Skin Care', 'Body Rituals', 'Ayurvedic Wellness'] as $index => $name) {
-            $categories[] = Category::query()->updateOrCreate(['slug' => $business->slug.'-'.Str::slug($name)], [
-                'business_id' => $business->id, 'name' => $name, 'sort_order' => $index + 1, 'is_active' => true,
+            $categories[] = Category::query()->updateOrCreate(['slug' => Str::slug($name)], [
+                'name' => $name, 'sort_order' => $index + 1, 'is_active' => true,
             ]);
         }
+
+        $business->categories()->syncWithoutDetaching(array_map(fn (Category $category) => $category->id, $categories));
 
         $menu = [
             ['Aromatherapy Massage', 0, 3500, 60, 2, 'A gentle full-body massage with calming lavender and lemongrass oils.'],

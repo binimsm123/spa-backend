@@ -13,7 +13,8 @@ it('seeds a connected spa dataset and can rerun without duplicating it', functio
     $this->assertDatabaseCount('users', 27);
     $this->assertDatabaseCount('businesses', 6);
     $this->assertDatabaseCount('business_users', 18);
-    $this->assertDatabaseCount('categories', 24);
+    $this->assertDatabaseCount('categories', 4);
+    $this->assertDatabaseCount('business_category', 24);
     $this->assertDatabaseCount('services', 48);
     $this->assertDatabaseCount('service_prices', 54);
     $this->assertDatabaseCount('business_hours', 42);

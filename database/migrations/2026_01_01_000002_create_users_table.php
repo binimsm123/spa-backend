@@ -10,18 +10,18 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table): void {
             $table->ulid('id')->primary();
-            $table->string('mobile_number')->unique();
+            $table->string('mobile')->unique();
             $table->string('email')->nullable()->unique();
             $table->string('password');
             $table->string('display_name');
-            $table->string('avatar_path')->nullable();
+            $table->string('image')->nullable();
             $table->string('timezone', 64)->default('Asia/Kathmandu');
             $table->string('address')->nullable();
             $table->string('city', 120)->nullable()->index();
             $table->decimal('latitude', 10, 7)->nullable();
             $table->decimal('longitude', 10, 7)->nullable();
             $table->boolean('is_active')->default(true);
-            $table->unsignedBigInteger('reward_points_balance')->default(0);
+            $table->unsignedBigInteger('reward_points')->default(0);
             $table->timestamp('mobile_verified_at')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->softDeletes();

@@ -83,7 +83,7 @@ class BusinessBookingController extends Controller
 
         $query = Booking::query()
             ->where('business_id', $business->getKey())
-            ->with(['items', 'user', 'business', 'payments', 'assignedStaff'])
+            ->with(['items', 'user', 'business.locations', 'payments', 'assignedStaff'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('date'), fn ($q, $date) => $q->whereDate('appointment_date', $date))
             ->when($request->query('payment_status'), fn ($q, $ps) => $q->whereHas('payments', fn ($p) => $p->where('status', $ps)))

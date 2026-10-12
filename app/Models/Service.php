@@ -26,6 +26,31 @@ class Service extends Model
         'status',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(fn (Service $service) => $service->linkCategory());
+        static::updated(function (Service $service): void {
+            if ($service->wasChanged(['category_id', 'business_id'])) {
+                $service->linkCategory();
+                $service->unsetRelation('category');
+            }
+        });
+    }
+
+    private function linkCategory(): void
+    {
+        if ($this->category_id === null) {
+            return;
+        }
+
+        BusinessCategory::query()->insertOrIgnore([
+            'business_id' => $this->business_id,
+            'category_id' => $this->category_id,
+            'created_at' => $this->updated_at,
+            'updated_at' => $this->updated_at,
+        ]);
+    }
+
     protected function casts(): array
     {
         return [

@@ -8,11 +8,11 @@ use App\Http\Controllers\Api\Business\BusinessStaffController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(function (): void {
-    Route::get('{business}/documents/{document}', [BusinessProfileController::class, 'document'])->whereUlid('business');
+    Route::get('{business}/documents/{document}', [BusinessProfileController::class, 'document'])->whereUlid('business')->name('business.documents.show');
     Route::get('my', [BusinessProfileController::class, 'myBusinesses']);
     Route::get('{business}', [BusinessProfileController::class, 'show'])->whereUlid('business');
     Route::patch('{business}', [BusinessProfileController::class, 'update'])->whereUlid('business');
-
+    Route::patch('{business}/toggleStatus', [BusinessProfileController::class, 'update'])->whereUlid('business');
     // Hours + closures
     Route::put('{business}/hours', [BusinessProfileController::class, 'updateHours'])->whereUlid('business');
     Route::post('{business}/closures', [BusinessProfileController::class, 'addClosures'])->whereUlid('business');

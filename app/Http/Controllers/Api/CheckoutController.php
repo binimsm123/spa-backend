@@ -42,7 +42,7 @@ class CheckoutController extends Controller
     {
         $this->assertOwned($request, $booking);
 
-        $booking->load(['items', 'business', 'payments']);
+        $booking->load(['items', 'business.locations', 'payments']);
 
         return $this->success((new CheckoutData($booking))->summary(), 'Checkout summary loaded.');
     }
@@ -94,7 +94,7 @@ class CheckoutController extends Controller
             throw ApiException::conflict(ErrorCode::BookingNotCompleted, 'Completion details are only available for completed appointments.');
         }
 
-        $booking->load(['items', 'business', 'payments', 'review']);
+        $booking->load(['items', 'business.locations', 'payments', 'review']);
 
         $receiptUrl = url('/receipts/'.$booking->getKey().'?expires='.now()->addMinutes(30)->timestamp.'&signature='.hash_hmac('sha256', $booking->getKey(), config('app.key')));
 
