@@ -3,18 +3,16 @@
 it('registers a customer and returns the success envelope', function (): void {
     $response = $this->postJson('/api/v1/auth/register', [
         'mobile_number' => '+9779811112222',
-        'password' => 'Customer#1',
-        'password_confirmation' => 'Customer#1',
-        'display_name' => 'Envelope Test',
+        'delivery_method' => 'sms',
     ]);
 
     $response->assertCreated()
         ->assertJsonPath('success', true)
-        ->assertJsonStructure(['data' => ['verification_id', 'delivery_method', 'masked_destination', 'expires_in', 'referral_applied']])
+        ->assertJsonStructure(['data' => ['verification_id', 'delivery_method', 'masked_destination', 'expires_in']])
         ->assertJsonStructure(['success', 'message', 'data']);
 });
 
-it('rejects weak passwords and bad mobile numbers with the validation envelope', function (): void {
+it('rejects bad mobile numbers with the validation envelope', function (): void {
     $this->postJson('/api/v1/auth/register', [
         'mobile_number' => 'not-a-phone',
         'password' => 'weak',
@@ -26,7 +24,7 @@ it('rejects weak passwords and bad mobile numbers with the validation envelope',
         ->assertJsonStructure(['errors']);
 });
 
-it('verifies registration and issues tokens', registerVerifyFlow());
+it('verifies registration and completes the account before issuing tokens', registerVerifyFlow());
 
 it('rejects invalid login credentials with 401', function (): void {
     $this->postJson('/api/v1/auth/login', [
@@ -118,7 +116,7 @@ it('completes password reset using reset_id and reset_token', function (): void 
 function registerVerifyFlow(): Closure
 {
     return function (): void {
-        $mobile = '+97798'.random_int(1000000, 9999999);
+        $mobile = '+97798'.random_int(10000000, 99999999);
 
         $register = $this->postJson('/api/v1/auth/register', [
             'mobile_number' => $mobile,
@@ -128,16 +126,26 @@ function registerVerifyFlow(): Closure
         ])->assertCreated();
 
         $verificationId = $register->json('data.verification_id');
-        $verification = \App\Models\VerificationCode::query()->findOrFail($verificationId);
-        $userId = $verification->user_id;
-        $user = \App\Models\User::query()->findOrFail($userId);
-        $code = last_test_sms_code();
-
-        $this->postJson('/api/v1/auth/register/verify', ['verification_id' => $verificationId, 'code' => $code])
-            ->assertOk()
+        $verify = $this->postJson('/api/v1/auth/register/verify', [
+            'verification_id' => $verificationId,
+            'code' => last_test_sms_code(),
+        ])->assertOk()
             ->assertJsonPath('success', true)
+            ->assertJsonPath('data.mobile_number', $mobile)
+            ->assertJsonPath('data.mobile_verified', true)
+            ->assertJsonStructure(['data' => ['registration_token', 'expires_in']]);
+
+        $this->assertDatabaseMissing('users', ['mobile' => $mobile]);
+        expect($verify->json('data'))->not->toHaveKeys(['access_token', 'refresh_token']);
+
+        $complete = $this->postJson('/api/v1/auth/register/complete', [
+            'registration_token' => $verify->json('data.registration_token'),
+            'password' => 'Customer#1',
+            'password_confirmation' => 'Customer#1',
+        ])->assertCreated()->assertJsonPath('data.user.mobile_verified', true)
+            ->assertJsonPath('data.referral_applied', false)
             ->assertJsonStructure(['data' => ['access_token', 'refresh_token', 'user']]);
 
-        expect($user->fresh()->mobile_verified_at)->not->toBeNull();
+        $this->assertDatabaseHas('users', ['id' => $complete->json('data.user.id'), 'mobile' => $mobile]);
     };
 }

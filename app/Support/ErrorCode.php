@@ -16,6 +16,12 @@ enum ErrorCode: string
     case ServerError = 'SERVER_ERROR';
 
     // Auth / account
+    case AccountExists = 'ACCOUNT_EXISTS';
+    case RateLimited = 'RATE_LIMITED';
+    case InvalidCode = 'INVALID_CODE';
+    case CodeExpired = 'CODE_EXPIRED';
+    case VerificationNotFound = 'VERIFICATION_NOT_FOUND';
+    case InvalidRegistrationToken = 'INVALID_REGISTRATION_TOKEN';
     case InvalidCredentials = 'INVALID_CREDENTIALS';
     case EmailNotVerified = 'EMAIL_NOT_VERIFIED';
     case MobileNotVerified = 'MOBILE_NOT_VERIFIED';
@@ -58,11 +64,12 @@ enum ErrorCode: string
         return match ($this) {
             self::ValidationError => 422,
             self::Unauthenticated, self::InvalidCredentials, self::InvalidVerificationCode,
-            self::VerificationCodeExpired, self::InvalidResetToken => 401,
+            self::VerificationCodeExpired, self::InvalidResetToken, self::InvalidCode,
+            self::CodeExpired, self::InvalidRegistrationToken => 401,
             self::Unauthorized, self::EmailNotVerified, self::MobileNotVerified,
             self::AccountDisabled, self::StaffNotAssigned => 403,
-            self::NotFound, self::ServiceUnavailable => 404,
-            self::Conflict, self::BookingSlotConflict, self::BookingRequestExpired,
+            self::NotFound, self::ServiceUnavailable, self::VerificationNotFound => 404,
+            self::Conflict, self::AccountExists, self::BookingSlotConflict, self::BookingRequestExpired,
             self::BookingRequestNotAccepted, self::BookingStatusTransitionInvalid,
             self::BookingNotCompleted, self::CapacityExceeded, self::StaffDoubleBooked,
             self::OfferUnavailable, self::OfferAlreadyRedeemed, self::OfferInvalidCode,
@@ -70,7 +77,7 @@ enum ErrorCode: string
             self::RewardPointsInsufficient, self::ReviewAlreadySubmitted,
             self::TipAmountInvalid, self::BusinessOffline, self::BusinessClosed,
             self::ServiceNotBookable => 409,
-            self::Throttled => 429,
+            self::Throttled, self::RateLimited => 429,
             self::WeakPassword, self::PaymentGatewayError, self::ServerError => 400,
         };
     }

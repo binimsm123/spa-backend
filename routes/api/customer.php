@@ -22,8 +22,6 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
 
     // Home + discovery
     Route::get('home', [HomeController::class, 'home']);
-    Route::get('newHome', [HomeController::class, 'newHome']);
-
     Route::get('businesses', [HomeController::class, 'businesses']);
     Route::get('businesses/{business}', [HomeController::class, 'businessDetail']);
 

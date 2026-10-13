@@ -10,12 +10,13 @@ class ReferralCode extends Model
 {
     use HasUlid;
 
-    protected $fillable = ['user_id', 'code', 'is_active'];
+    protected $fillable = ['user_id', 'code', 'is_active', 'expires_at'];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'expires_at' => 'datetime',
         ];
     }
 

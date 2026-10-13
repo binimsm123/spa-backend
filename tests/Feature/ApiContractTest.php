@@ -3,21 +3,22 @@
 use App\Models\User;
 
 it('matches the collection contract for account creation', function (): void {
+    $this->freezeTime();
     $response = $this->postJson('/api/v1/auth/register', [
         'mobile_number' => '+9779812345678',
-        'password' => 'Example@123',
-        'password_confirmation' => 'Example@123',
         'delivery_method' => 'sms',
     ]);
 
     $response->assertCreated()
         ->assertJsonPath('success', true)
         ->assertJsonPath('message', 'Verification code sent.')
+        ->assertJsonPath('data.masked_destination', '+977 98******78')
+        ->assertJsonPath('data.expires_in', 600)
         ->assertJsonStructure([
             'success', 'message',
             'data' => [
                 'verification_id', 'delivery_method', 'masked_destination',
-                'expires_in', 'referral_applied',
+                'expires_in',
             ],
         ]);
 

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('throttle:auth')->group(function (): void {
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/register/verify', [AuthController::class, 'verifyRegistration']);
+    Route::post('auth/register/complete', [AuthController::class, 'completeRegistration']);
     Route::post('auth/verification/resend', [AuthController::class, 'resendVerification']);
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::post('auth/refresh', [AuthController::class, 'refresh']);

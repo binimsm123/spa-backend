@@ -5,20 +5,22 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Dto\Api\AuthSessionData;
 use App\Http\Dto\Api\TokenData;
+use App\Http\Requests\Auth\CompleteRegistrationRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\LogoutRequest;
 use App\Http\Requests\Auth\PasswordChangeRequest;
 use App\Http\Requests\Auth\PasswordForgotRequest;
-use App\Http\Requests\Auth\PasswordResetRequest;
 use App\Http\Requests\Auth\PasswordResendRequest;
+use App\Http\Requests\Auth\PasswordResetRequest;
 use App\Http\Requests\Auth\PasswordVerifyRequest;
 use App\Http\Requests\Auth\RefreshRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\VerifyRegistrationRequest;
-use App\Services\AuthService;
-use App\Support\ApiResponse;
+use App\Models\RefreshToken;
 use App\Models\User;
 use App\Models\VerificationCode;
+use App\Services\AuthService;
+use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -34,15 +36,14 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         $data = $request->validated();
-        ['user' => $user, 'verification' => $verification] = $this->auth->register($data);
+        $verification = $this->auth->register($data);
 
         return $this->success(
             [
-                'verification_id' => $verification?->getKey(),
+                'verification_id' => $verification->getKey(),
                 'delivery_method' => $data['delivery_method'] ?? 'sms',
-                'masked_destination' => $this->maskMobile($user->mobile),
-                'expires_in' => $verification ? max(0, now()->diffInSeconds($verification->expires_at, false)) : 600,
-                'referral_applied' => filled($data['referral_code'] ?? null),
+                'masked_destination' => $this->maskMobile($verification->mobile_number),
+                'expires_in' => max(0, (int) ceil(now()->diffInSeconds($verification->expires_at, false))),
             ],
             'Verification code sent.',
             Response::HTTP_CREATED,
@@ -52,32 +53,29 @@ class AuthController extends Controller
     public function verifyRegistration(VerifyRegistrationRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $verification = ! empty($data['verification_id'])
-            ? VerificationCode::query()->with('user')->findOrFail($data['verification_id'])
-            : null;
-        $user = $verification?->user ?? User::query()->findOrFail($data['user_id']);
+        $registration = $this->auth->verifyRegistration($data['verification_id'], $data['code']);
 
-        $tokens = $this->auth->verifyRegistration($user, $data['code']);
+        return $this->success($registration, 'Mobile number verified. Create a password to finish registration.');
+    }
 
-        return $this->success($this->tokenPayload($tokens, true), 'Account verified successfully.');
+    public function completeRegistration(CompleteRegistrationRequest $request): JsonResponse
+    {
+        $tokens = $this->auth->completeRegistration($request->validated());
+
+        return $this->success([
+            ...$this->tokenPayload($tokens, true),
+            'referral_applied' => $tokens['referral_applied'],
+        ], 'Account created successfully.', Response::HTTP_CREATED);
     }
 
     public function resendVerification(Request $request): JsonResponse
     {
-        $request->validate(['verification_id' => ['required', 'string', 'exists:verification_codes,id']]);
-
-        $verification = VerificationCode::query()->with('user')->findOrFail($request->input('verification_id'));
-        $user = $verification->user;
-
-        if ($user->mobile_verified_at !== null) {
-            return $this->success(null, 'Mobile number is already verified.');
-        }
-
-        $newVerification = $this->auth->resendVerification($user);
+        $data = $request->validate(['verification_id' => ['required', 'string']]);
+        $verification = $this->auth->resendVerification($data['verification_id']);
 
         return $this->success([
-            'verification_id' => $newVerification->getKey(),
-            'expires_in' => max(0, now()->diffInSeconds($newVerification->expires_at, false)),
+            'verification_id' => $verification->getKey(),
+            'expires_in' => max(0, (int) now()->diffInSeconds($verification->expires_at, false)),
             'resend_available_in' => 60,
         ], 'A new verification code was sent.');
     }
@@ -138,7 +136,7 @@ class AuthController extends Controller
         $data = $request->validated();
 
         // The reset token is a short-lived refresh session owned by the user.
-        $session = \App\Models\RefreshToken::query()
+        $session = RefreshToken::query()
             ->where('token_hash', hash('sha256', $data['reset_token']))
             ->whereNull('revoked_at')
             ->where('expires_at', '>', now())
@@ -194,6 +192,10 @@ class AuthController extends Controller
 
     private function maskMobile(string $mobile): string
     {
-        return preg_replace('/(\+\d{3})\d+(\d{2})$/', '$1******$2', $mobile) ?: $mobile;
+        if (str_starts_with($mobile, '+977') && strlen($mobile) === 14) {
+            return substr($mobile, 0, 4).' '.substr($mobile, 4, 2).'******'.substr($mobile, -2);
+        }
+
+        return substr($mobile, 0, 3).str_repeat('*', max(0, strlen($mobile) - 5)).substr($mobile, -2);
     }
 }

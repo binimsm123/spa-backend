@@ -14,7 +14,7 @@ class VerifyRegistrationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'verification_id' => ['required', 'string', 'exists:verification_codes,id'],
+            'verification_id' => ['required', 'string'],
             'code' => ['required', 'digits:4'],
         ];
     }

@@ -103,7 +103,7 @@ it('requires the business information and all KYC documents', function (): void 
 
 it('logs in with the same account credentials and returns the owner role after business registration', function (): void {
     Storage::fake('local');
-    $owner = User::factory()->create(['password' => 'Customer#1']);
+    $owner = User::factory()->create(['password' => 'Customer#1', 'mobile_verified_at' => now()]);
     $owner->assignRole('customer');
 
     $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload(), ['Accept' => 'application/json'])

@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-// use App\Jobs\SendVerificationCodeJob;
 use App\Enums\VerificationType;
-use App\Models\RefreshToken;
+use App\Jobs\SendVerificationCodeJob;
 use App\Models\ReferralCode;
+use App\Models\RefreshToken;
 use App\Models\User;
 use App\Models\VerificationCode;
 use App\Support\ApiException;
@@ -31,26 +31,120 @@ class AuthService
     // Registration + verification
     // -------------------------------------------------------------------------
 
-    /**
-     * @return array{user: User, verification: VerificationCode}
-     */
-    public function register(array $data): array
+    public function register(array $data): VerificationCode
     {
-        return DB::transaction(function () use ($data): array {
-            $referral = null;
-            if (! empty($data['referral_code'])) {
-                $referral = $this->validateReferralCode($data['referral_code']);
+        return DB::transaction(function () use ($data): VerificationCode {
+            $mobile = $data['mobile_number'];
+            $this->ensureAccountDoesNotExist($mobile);
+
+            $latest = VerificationCode::query()
+                ->where('mobile_number', $mobile)
+                ->where('type', VerificationType::Registration->value)
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->lockForUpdate()->first();
+
+            if ($latest?->last_sent_at?->gt(now()->subSeconds(self::RESEND_COOLDOWN_SECONDS))) {
+                throw new ApiException(ErrorCode::RateLimited, 'Please wait before requesting another code.');
             }
 
-            /** @var User $user */
-            $user = User::create([
-                'mobile' => $data['mobile_number'],
-                'email' => $data['email'] ?? null,
-                'password' => $data['password'],
-                'display_name' => $data['display_name'] ?? $data['mobile_number'],
-                'timezone' => $data['timezone'] ?? 'Asia/Kathmandu',
+            VerificationCode::query()
+                ->where('mobile_number', $mobile)
+                ->where('type', VerificationType::Registration->value)
+                ->update(['consumed_at' => now(), 'registration_token_hash' => null]);
+
+            $code = app()->environment(['local', 'testing'])
+                ? (string) config('spa.auth.static_verification_code', '1234')
+                : (string) random_int(1000, 9999);
+
+            $verification = VerificationCode::query()->create([
+                'mobile_number' => $mobile,
+                'type' => VerificationType::Registration,
+                'code' => $code,
+                'expires_at' => now()->addMinutes(self::CODE_TTL_MINUTES),
+                'last_sent_at' => now(),
             ]);
 
+            SendVerificationCodeJob::dispatch($mobile, $this->verificationMessage($code, VerificationType::Registration))->afterCommit();
+
+            return $verification;
+        }, 3);
+    }
+
+    /** @return array{registration_token: string, mobile_number: string, mobile_verified: bool, expires_in: int} */
+    public function verifyRegistration(string $verificationId, string $code): array
+    {
+        $result = DB::transaction(function () use ($verificationId, $code): array|ApiException {
+            $verification = VerificationCode::query()
+                ->whereKey($verificationId)
+                ->where('type', VerificationType::Registration->value)
+                ->whereNull('user_id')->whereNotNull('mobile_number')
+                ->whereNull('consumed_at')->lockForUpdate()->first();
+
+            if ($verification === null) {
+                throw new ApiException(ErrorCode::VerificationNotFound, 'No active registration verification was found.');
+            }
+            if ($verification->expires_at->lte(now())) {
+                throw new ApiException(ErrorCode::CodeExpired, 'This code has expired. Request a new one.');
+            }
+            if ($verification->attempts >= 5 || ! hash_equals($verification->code, $code)) {
+                if ($verification->attempts < 5) {
+                    $verification->increment('attempts');
+                }
+
+                return new ApiException(ErrorCode::InvalidCode, 'The verification code is incorrect or no longer usable.');
+            }
+
+            $token = Str::random(60);
+            $verification->forceFill([
+                'consumed_at' => now(),
+                'registration_token_hash' => hash('sha256', $token),
+                'registration_token_expires_at' => now()->addMinutes(self::CODE_TTL_MINUTES),
+            ])->save();
+
+            return [
+                'registration_token' => $token,
+                'mobile_number' => $verification->mobile_number,
+                'mobile_verified' => true,
+                'expires_in' => self::CODE_TTL_MINUTES * 60,
+            ];
+        });
+
+        if ($result instanceof ApiException) {
+            throw $result;
+        }
+
+        return $result;
+    }
+
+    /** @return array{user: User, access_token: string, refresh_token: string, referral_applied: bool} */
+    public function completeRegistration(array $data): array
+    {
+        return DB::transaction(function () use ($data): array {
+            $verification = VerificationCode::query()
+                ->where('registration_token_hash', hash('sha256', $data['registration_token']))
+                ->where('type', VerificationType::Registration->value)
+                ->whereNull('user_id')->whereNotNull('mobile_number')
+                ->whereNotNull('consumed_at')
+                ->where('registration_token_expires_at', '>', now())
+                ->lockForUpdate()->first();
+
+            if ($verification === null) {
+                throw new ApiException(ErrorCode::InvalidRegistrationToken, 'Registration token is invalid or expired.');
+            }
+
+            $mobile = $verification->mobile_number;
+            $this->ensureAccountDoesNotExist($mobile);
+            $referral = filled($data['referral_code'] ?? null)
+                ? $this->validateReferralCode($data['referral_code'], $mobile)
+                : null;
+
+            $user = User::create([
+                'mobile' => $mobile,
+                'password' => $data['password'],
+                'display_name' => $mobile,
+                'timezone' => 'Asia/Kathmandu',
+                'mobile_verified_at' => now(),
+            ]);
             $user->assignRole('customer');
 
             if ($referral !== null) {
@@ -65,27 +159,32 @@ class AuthService
                 ]);
             }
 
-            $verification = $this->issueVerificationCode($user, VerificationType::Registration);
+            $verification->forceFill(['user_id' => $user->getKey(), 'registration_token_hash' => null])->save();
 
-            return [
-                'user' => $user,
-                'verification' => $verification,
-            ];
+            return [...$this->issueTokens($user, 'registration-completed'), 'referral_applied' => $referral !== null];
         });
     }
 
-    public function verifyRegistration(User $user, string $code): array
+    public function resendVerification(string $verificationId): VerificationCode
     {
-        $this->consumeCode($user, VerificationType::Registration, $code);
+        $verification = VerificationCode::query()
+            ->whereKey($verificationId)
+            ->where('type', VerificationType::Registration->value)
+            ->whereNull('user_id')->whereNotNull('mobile_number')
+            ->whereNull('consumed_at')->first();
 
-        $user->forceFill(['mobile_verified_at' => now()])->save();
+        if ($verification === null) {
+            throw new ApiException(ErrorCode::VerificationNotFound, 'No active registration verification was found.');
+        }
 
-        return $this->issueTokens($user, 'registration-verified');
+        return $this->register(['mobile_number' => $verification->mobile_number]);
     }
 
-    public function resendVerification(User $user): VerificationCode
+    private function ensureAccountDoesNotExist(string $mobile): void
     {
-        return $this->issueVerificationCode($user, VerificationType::Registration);
+        if (User::withTrashed()->where('mobile', $mobile)->exists()) {
+            throw new ApiException(ErrorCode::AccountExists, 'An account with this mobile number already exists.');
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -105,6 +204,10 @@ class AuthService
             throw new ApiException(ErrorCode::AccountDisabled, 'This account has been deactivated.');
         }
 
+        if ($user->mobile_verified_at === null) {
+            throw new ApiException(ErrorCode::MobileNotVerified, 'Verify your mobile number before logging in.');
+        }
+
         return $this->issueTokens($user, 'login');
     }
 
@@ -113,7 +216,7 @@ class AuthService
      */
     public function issueTokens(User $user, string $deviceName): array
     {
-        $accessToken = $user->createToken($deviceName)->plainTextToken;
+        $accessToken = $user->createToken($deviceName, ['*'], now()->addHour())->plainTextToken;
 
         $refreshToken = $this->createRefreshToken($user);
 
@@ -270,7 +373,8 @@ class AuthService
 
         // Temporary test-only OTP. Replace with random generation before production.
         $code = (string) config('spa.auth.static_verification_code', '1234');
-        //$code = (string) random_int(1000, 9999);
+
+        // $code = (string) random_int(1000, 9999);
         return VerificationCode::query()->create([
             'user_id' => $user->getKey(),
             'type' => $type->value,
@@ -331,18 +435,18 @@ class AuthService
     // Referral code validation
     // -------------------------------------------------------------------------
 
-    private function validateReferralCode(string $rawCode): ReferralCode
+    private function validateReferralCode(string $rawCode, string $mobile): ReferralCode
     {
         $code = strtoupper(trim($rawCode));
 
         /** @var ReferralCode|null $referralCode */
-        $referralCode = ReferralCode::query()->where('code', $code)->where('is_active', true)->first();
+        $referralCode = ReferralCode::query()->with('user')->where('code', $code)->where('is_active', true)->lockForUpdate()->first();
 
-        if ($referralCode === null) {
-            throw new ApiException(ErrorCode::NotFound, 'The referral code is not valid.');
+        if ($referralCode === null || $referralCode->user === null || $referralCode->user->mobile === $mobile
+            || ($referralCode->expires_at !== null && $referralCode->expires_at->lte(now()))) {
+            throw ApiException::validation('The referral code is not valid.', ['referral_code' => ['The referral code is not valid.']]);
         }
 
         return $referralCode;
     }
-
 }

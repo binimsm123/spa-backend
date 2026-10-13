@@ -5,9 +5,7 @@ use App\Models\BusinessHour;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\User;
-use App\Models\VerificationCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -15,18 +13,19 @@ pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->in('Feature', 'Unit');
 
-beforeEach(function (): void {
+pest()->beforeEach(function (): void {
     $GLOBALS['test_verification_codes'] = [];
+    Http::preventStrayRequests();
     Http::fake([
         'https://api.sparrowsms.com/*' => function ($request) {
             if (preg_match('/\b(\d{4})\b/', (string) $request['text'], $matches)) {
                 $GLOBALS['test_verification_codes'][] = $matches[1];
             }
 
-            return Response::fake(['count' => 1, 'response_code' => 200, 'response' => 'queued']);
+            return Http::response(['count' => 1, 'response_code' => 200, 'response' => 'queued']);
         },
     ]);
-});
+})->in('Feature', 'Unit');
 
 // -------------------------------------------------------------------------
 // Shared helpers
@@ -39,25 +38,28 @@ if (! function_exists('registerCustomer')) {
     function registerCustomer(array $overrides = []): array
     {
         $payload = [
-            'mobile_number' => '+97798'.random_int(1000000, 9999999),
+            'mobile_number' => '+97798'.random_int(10000000, 99999999),
             'password' => 'Customer#1',
             'password_confirmation' => 'Customer#1',
             'display_name' => 'Test Customer',
             ...$overrides,
         ];
 
-        $response = test()->postJson('/api/v1/auth/register', $payload);
+        $response = test()->postJson('/api/v1/auth/register', [
+            'mobile_number' => $payload['mobile_number'],
+            'delivery_method' => 'sms',
+        ])->assertCreated();
         $verificationId = $response->json('data.verification_id');
-        $userId = VerificationCode::query()->findOrFail($verificationId)->user_id;
-        $user = User::query()->findOrFail($userId);
-        $code = last_test_sms_code();
+        $verify = test()->postJson('/api/v1/auth/register/verify', [
+            'verification_id' => $verificationId,
+            'code' => last_test_sms_code(),
+        ])->assertOk();
+        $complete = test()->postJson('/api/v1/auth/register/complete', [
+            ...$payload,
+            'registration_token' => $verify->json('data.registration_token'),
+        ])->assertCreated();
 
-        $verify = test()->postJson('/api/v1/auth/register/verify', ['verification_id' => $verificationId, 'code' => $code]);
-
-        return [
-            $user->fresh(),
-            $verify->json('data'),
-        ];
+        return [User::query()->findOrFail($complete->json('data.user.id')), $complete->json('data')];
     }
 }
 
@@ -88,7 +90,7 @@ if (! function_exists('actingAsSuperadmin')) {
     function actingAsSuperadmin(): User
     {
         $admin = User::query()->create([
-            'mobile' => '+97798'.random_int(1000000, 9999999),
+            'mobile' => '+97798'.random_int(10000000, 99999999),
             'display_name' => 'Admin',
             'password' => 'AdminPass#1',
             'is_active' => true,
