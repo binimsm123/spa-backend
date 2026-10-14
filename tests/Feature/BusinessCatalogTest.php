@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Dto\Api\CatalogData;
+use App\Models\Booking;
 use App\Models\Category;
 use App\Models\User;
 use App\Services\BusinessService;
@@ -63,7 +64,7 @@ it('uses a fixed number of catalog queries as the business count increases', fun
         Model::preventLazyLoading($preventedLazyLoading);
     }
 
-    expect($queryCounts[0])->toBe($queryCounts[1])->toBeLessThanOrEqual(8);
+    expect($queryCounts[0])->toBe($queryCounts[1])->toBeLessThanOrEqual(6);
 });
 
 it('paginates categories and businesses independently and caps the category page size', function (): void {
@@ -455,7 +456,7 @@ it('uses a fixed query count and eager loaded relations for an unpaginated filte
         Model::preventLazyLoading($preventedLazyLoading);
     }
 
-    expect($queryCounts[0])->toBe($queryCounts[1])->toBeLessThanOrEqual(5);
+    expect($queryCounts[0])->toBe($queryCounts[1])->toBeLessThanOrEqual(8);
 });
 
 it('can skip service eager loading while retaining category and business eligibility', function (): void {
@@ -500,6 +501,47 @@ it('returns the unpaginated new home catalog in the API envelope without unloade
 it('returns an empty unpaginated catalog for new home when no businesses match', function (): void {
     $this->actingAs(User::factory()->create(), 'sanctum')->getJson('/api/v1/newHome?location=Missing')
         ->assertOk()->assertJsonPath('success', true)->assertJsonPath('data.categories', []);
+});
+
+it('includes visible business reviews in home even when services are not loaded', function (): void {
+    $category = Category::query()->create(['name' => 'Massage', 'slug' => 'massage', 'is_active' => true]);
+    [$business, $service] = catalogBusiness($category);
+    $customer = User::factory()->create();
+    $review = null;
+    foreach ([false, true] as $hidden) {
+        $booking = Booking::query()->create([
+            'user_id' => $customer->id,
+            'business_id' => $business->id,
+            'appointment_date' => now()->toDateString(),
+            'starts_at' => now()->addDay(),
+            'ends_at' => now()->addDay()->addHour(),
+            'status' => 'completed',
+            'completed_at' => now(),
+            'subtotal_minor' => 100000,
+            'total_minor' => 100000,
+            'currency' => 'NPR',
+        ]);
+        $created = $business->reviews()->create([
+            'booking_id' => $booking->id, 'user_id' => $customer->id, 'service_id' => $service->id,
+            'rating' => 5, 'comments' => 'Relaxing treatment', 'is_hidden' => $hidden,
+        ]);
+        if (! $hidden) {
+            $review = $created;
+        }
+    }
+    $this->actingAs($customer, 'sanctum');
+    $preventedLazyLoading = Model::preventsLazyLoading();
+    Model::preventLazyLoading();
+
+    try {
+        $this->getJson('/api/v1/home')->assertOk()
+            ->assertJsonCount(1, 'data.categories.0.businesses.0.reviews')
+            ->assertJsonPath('data.categories.0.businesses.0.reviews.0.id', $review->id)
+            ->assertJsonPath('data.categories.0.businesses.0.reviews.0.rating', 5)
+            ->assertJsonPath('data.categories.0.businesses.0.reviews.0.customer.id', $customer->id);
+    } finally {
+        Model::preventLazyLoading($preventedLazyLoading);
+    }
 });
 
 it('requires authentication for new home', function (): void {

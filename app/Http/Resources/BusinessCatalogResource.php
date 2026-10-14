@@ -24,7 +24,7 @@ class BusinessCatalogResource extends BusinessResource
                     } else {
                         $data = array_intersect_key((new BusinessResource($business))->resolve(), array_flip([
                             ...array_keys($business->getAttributes()),
-                            'hero_image_url', 'locations', 'services',
+                            'hero_image_url', 'locations', 'services', 'reviews',
                         ]));
                         unset($data['address'], $data['city'], $data['latitude'], $data['longitude']);
                         if (array_key_exists('phone_number', $business->getAttributes())) {

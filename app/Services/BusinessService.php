@@ -179,7 +179,8 @@ class BusinessService
             ->withWhereHas('businesses', function (Builder|Relation $query) use ($filters): void {
                 $businesses = $query instanceof Relation ? $query->getQuery() : $query;
                 if ($query instanceof Relation) {
-                    $businesses->select(['businesses.id', 'businesses.name', 'businesses.slug', 'businesses.about', 'businesses.hero_image_path', 'businesses.phone_number']);
+                    $businesses->select(['businesses.id', 'businesses.name', 'businesses.slug', 'businesses.about', 'businesses.hero_image_path', 'businesses.phone_number'])
+                        ->with(['reviews' => fn (Relation $reviews) => $reviews->where('is_hidden', false)->with('user.roles')->latest()]);
                 }
                 $this->applyBusinessFilters(
                     $businesses, $filters, true, 'business_category.category_id',
