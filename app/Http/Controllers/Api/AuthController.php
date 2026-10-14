@@ -20,7 +20,9 @@ use App\Models\RefreshToken;
 use App\Models\User;
 use App\Models\VerificationCode;
 use App\Services\AuthService;
+use App\Support\ApiException;
 use App\Support\ApiResponse;
+use App\Support\ErrorCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -137,10 +139,15 @@ class AuthController extends Controller
 
         // The reset token is a short-lived refresh session owned by the user.
         $session = RefreshToken::query()
+            ->with('user')
             ->where('token_hash', hash('sha256', $data['reset_token']))
             ->whereNull('revoked_at')
             ->where('expires_at', '>', now())
-            ->firstOrFail();
+            ->first();
+
+        if ($session === null || $session->user === null) {
+            throw new ApiException(ErrorCode::InvalidResetToken, 'Password reset token is invalid or expired.');
+        }
 
         $user = $session->user;
 

@@ -157,6 +157,49 @@ it('lists a business under each category with only that category services', func
         ->assertJsonPath('data.categories.1.businesses.0.services.0.id', $facialService->id);
 });
 
+it('searches category names with q while retaining business filters', function (string $endpoint, string $businessPath): void {
+    $category = Category::query()->create(['name' => 'Wellness Therapy', 'slug' => 'wellness-therapy', 'is_active' => true]);
+    [$business] = catalogBusiness($category);
+    catalogBusiness($category, 'Pokhara');
+    [$offline] = catalogBusiness($category);
+    $offline->update(['is_online' => false]);
+    $this->actingAs(User::factory()->create(), 'sanctum');
+
+    $this->getJson($endpoint.'?'.http_build_query(['q' => ' ThErAp ', 'city' => 'Kathmandu']))
+        ->assertOk()->assertJsonCount(1, $businessPath)
+        ->assertJsonPath($businessPath.'.0.id', $business->id);
+})->with([
+    'home' => ['/api/v1/home', 'data.categories.0.businesses'],
+    'new home' => ['/api/v1/newHome', 'data.categories.0.businesses'],
+    'businesses' => ['/api/v1/businesses', 'data.items'],
+]);
+
+it('restricts category name search to the current category and active services', function (string $endpoint): void {
+    $matched = Category::query()->create(['name' => 'Wellness Therapy', 'slug' => 'wellness-therapy', 'is_active' => true]);
+    $other = Category::query()->create(['name' => 'Skincare', 'slug' => 'skincare', 'is_active' => true]);
+    [$business] = catalogBusiness($matched);
+    $business->services()->create(['category_id' => $other->id, 'name' => 'Basic Treatment', 'slug' => 'basic-treatment', 'status' => 'active']);
+    $business->services()->create(['name' => 'General Treatment', 'slug' => 'general-treatment', 'status' => 'active']);
+    [$paused, $pausedService] = catalogBusiness($matched);
+    $pausedService->update(['status' => 'paused']);
+    [$hidden, $hiddenService] = catalogBusiness($other);
+    $inactive = Category::query()->create(['name' => 'Hidden Therapy', 'slug' => 'hidden-therapy', 'is_active' => false]);
+    $hiddenService->update(['category_id' => $inactive->id]);
+    $this->actingAs(User::factory()->create(), 'sanctum');
+
+    $this->getJson($endpoint.'?q=therapy')->assertOk()
+        ->assertJsonCount(1, 'data.categories')->assertJsonPath('data.categories.0.id', $matched->id)
+        ->assertJsonCount(1, 'data.categories.0.businesses')
+        ->assertJsonPath('data.categories.0.businesses.0.id', $business->id);
+    $this->getJson($endpoint.'?q=therapy&category_id='.$other->id)->assertOk()
+        ->assertJsonCount(0, 'data.categories');
+    $this->getJson('/api/v1/businesses?q=therapy&category_id='.$other->id)->assertOk()
+        ->assertJsonCount(0, 'data.items');
+})->with([
+    'home' => ['/api/v1/home'],
+    'new home' => ['/api/v1/newHome'],
+]);
+
 it('pages businesses independently in every category with category specific services and totals', function (): void {
     $massage = Category::query()->create(['name' => 'Massage', 'slug' => 'massage', 'is_active' => true, 'sort_order' => 1]);
     $facial = Category::query()->create(['name' => 'Facial', 'slug' => 'facial', 'is_active' => true, 'sort_order' => 2]);

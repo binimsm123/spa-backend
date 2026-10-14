@@ -307,8 +307,11 @@ class BusinessService
                         } else {
                             $services->where('status', 'active');
                         }
-                        $services->where(function (Builder $services) use ($like): void {
-                            $services->whereLike('name', $like)->orWhereLike('search_name', $like);
+                        $services->where(function (Builder $services) use ($like, $catalog): void {
+                            $services->whereLike('name', $like)->orWhereLike('search_name', $like)
+                                ->orWhereHas('category', fn (Builder $category) => $category
+                                    ->when($catalog, fn (Builder $category) => $category->where('is_active', true))
+                                    ->whereLike('name', $like));
                         });
                     })
                     ->orWhereHas('locations', fn (Builder $locations) => $locations

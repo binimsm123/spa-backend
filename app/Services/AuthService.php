@@ -251,7 +251,7 @@ class AuthService
                 ->lockForUpdate()
                 ->first();
 
-            if ($refreshToken === null) {
+            if ($refreshToken === null || $refreshToken->user === null) {
                 throw new ApiException(ErrorCode::Unauthenticated, 'Refresh token is invalid or expired.');
             }
 
