@@ -179,7 +179,7 @@ it('creates the verified customer with a hashed password and supports authentica
     ])
         ->assertCreated()->assertJsonPath('data.user.mobile_number', '+9779812345678')
         ->assertJsonPath('message', 'Account created successfully.')
-        ->assertJsonPath('data.referral_applied', false)->assertJsonPath('data.expires_in', 3600);
+        ->assertJsonPath('data.referral_applied', false)->assertJsonPath('data.expires_in', 604800);
     $user = User::query()->findOrFail($complete->json('data.user.id'));
     expect(Hash::check('Example@123', $user->password))->toBeTrue();
     expect($user->hasRole('customer'))->toBeTrue();
@@ -265,11 +265,31 @@ it('validates required completion fields before creating any account', function 
     $this->assertDatabaseCount('users', 0);
 });
 
-it('expires authenticated access tokens after the advertised hour', function (): void {
+it('keeps access tokens valid beyond an hour and expires them after the advertised lifetime', function (): void {
     $this->freezeTime();
     $complete = $this->postJson('/api/v1/auth/register/complete', completionPayload(verifiedRegistration()))
-        ->assertCreated()->assertJsonPath('data.expires_in', 3600);
+        ->assertCreated()->assertJsonPath('data.expires_in', 604800);
 
-    $this->travel(3600)->seconds();
+    $this->travel(2)->hours();
+    $this->withToken($complete->json('data.access_token'))->getJson('/api/v1/users/me')->assertOk();
+
+    $this->travel(7)->days();
+    auth()->forgetGuards();
     $this->withToken($complete->json('data.access_token'))->getJson('/api/v1/users/me')->assertUnauthorized();
+});
+
+it('applies the configured access token lifetime to registration login and refresh', function (): void {
+    $this->freezeTime();
+    config(['spa.auth.access_ttl_minutes' => 120]);
+    $complete = $this->postJson('/api/v1/auth/register/complete', completionPayload(verifiedRegistration()))
+        ->assertCreated()->assertJsonPath('data.expires_in', 7200);
+    $user = User::query()->findOrFail($complete->json('data.user.id'));
+    $this->postJson('/api/v1/auth/login', ['mobile_number' => $user->mobile, 'password' => 'Example@123'])
+        ->assertOk()->assertJsonPath('data.expires_in', 7200);
+    $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $complete->json('data.refresh_token')])
+        ->assertOk()->assertJsonPath('data.expires_in', 7200);
+
+    foreach ($user->tokens()->get() as $token) {
+        expect($token->expires_at->timestamp)->toBe(now()->addHours(2)->timestamp);
+    }
 });

@@ -178,7 +178,7 @@ class AuthController extends Controller
     }
 
     /**
-     * @param  array{user: User, access_token: string, refresh_token: string}  $tokens
+     * @param  array{user: User, access_token: string, refresh_token: string, expires_in: int}  $tokens
      * @return array<string, mixed>
      */
     private function tokenPayload(array $tokens, bool $includeUser = false): array
@@ -188,12 +188,14 @@ class AuthController extends Controller
                 $tokens['user'],
                 $tokens['access_token'],
                 $tokens['refresh_token'],
+                $tokens['expires_in'],
             ))->toArray();
         }
 
         return (new TokenData(
             $tokens['access_token'],
             $tokens['refresh_token'],
+            $tokens['expires_in'],
         ))->toArray();
     }
 

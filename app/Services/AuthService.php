@@ -116,7 +116,7 @@ class AuthService
         return $result;
     }
 
-    /** @return array{user: User, access_token: string, refresh_token: string, referral_applied: bool} */
+    /** @return array{user: User, access_token: string, refresh_token: string, expires_in: int, referral_applied: bool} */
     public function completeRegistration(array $data): array
     {
         return DB::transaction(function () use ($data): array {
@@ -212,15 +212,16 @@ class AuthService
     }
 
     /**
-     * @return array{user: User, access_token: string, refresh_token: string}
+     * @return array{user: User, access_token: string, refresh_token: string, expires_in: int}
      */
     public function issueTokens(User $user, string $deviceName): array
     {
-        $accessToken = $user->createToken($deviceName, ['*'], now()->addHour())->plainTextToken;
+        $accessTtlMinutes = max(1, (int) config('spa.auth.access_ttl_minutes', 10080));
+        $accessToken = $user->createToken($deviceName, ['*'], now()->addMinutes($accessTtlMinutes))->plainTextToken;
 
         $refreshToken = $this->createRefreshToken($user);
 
-        return ['user' => $user, 'access_token' => $accessToken, 'refresh_token' => $refreshToken];
+        return ['user' => $user, 'access_token' => $accessToken, 'refresh_token' => $refreshToken, 'expires_in' => $accessTtlMinutes * 60];
     }
 
     public function createRefreshToken(User $user): string

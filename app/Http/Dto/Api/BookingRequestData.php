@@ -19,6 +19,7 @@ final readonly class BookingRequestData
             'provider_id' => $this->request->business_id,
             'service_id' => $this->request->service_id,
             'requested_date' => $this->request->requested_date?->toDateString(),
+            'people_count' => $this->request->people_count,
             'timezone' => $this->request->timezone,
             'available_times' => $times->map(fn ($time) => $time->starts_at?->format('H:i'))->values()->all(),
             'expires_in' => $this->request->expires_at ? max(0, now()->diffInSeconds($this->request->expires_at, false)) : null,

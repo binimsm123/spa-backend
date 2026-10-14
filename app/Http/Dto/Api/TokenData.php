@@ -7,7 +7,7 @@ final readonly class TokenData
     public function __construct(
         public string $accessToken,
         public string $refreshToken,
-        public int $expiresIn = 3600,
+        public int $expiresIn,
     ) {}
 
     public function toArray(): array

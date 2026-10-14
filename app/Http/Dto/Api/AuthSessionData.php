@@ -16,7 +16,7 @@ final readonly class AuthSessionData
         public User $user,
         public string $accessToken,
         public string $refreshToken,
-        public int $expiresIn = 3600,
+        public int $expiresIn,
     ) {}
 
     public function toArray(): array

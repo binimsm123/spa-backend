@@ -2,8 +2,7 @@
 
 return [
     'auth' => [
-        // Short-lived access tokens (Sanctum ability config can extend this).
-        'access_ttl_minutes' => env('ACCESS_TOKEN_TTL_MINUTES', 30),
+        'access_ttl_minutes' => env('ACCESS_TOKEN_TTL_MINUTES', 10080),
         // Rotating refresh sessions.
         'refresh_ttl_days' => env('REFRESH_TOKEN_TTL_DAYS', 30),
         'static_verification_code' => env('STATIC_VERIFICATION_CODE', '1234'),
