@@ -34,7 +34,11 @@ class HomeController extends Controller
 
     public function newHome(BusinessCatalogRequest $request): JsonResponse
     {
-        $categories = $this->businesses->categoriesWithBusiness($request->validated(), loadServices: false);
+        $loadServices = false;
+        if($request->has('services') && $request->services) {
+            $loadServices = true;
+        }
+        $categories = $this->businesses->categoriesWithBusiness($request->validated(), loadServices: $loadServices);
 
         return $this->success((new CatalogData($request->user(), $categories, $this->notifications->unreadCount($request->user())))->toArray(), 'Home catalog loaded.');
     }

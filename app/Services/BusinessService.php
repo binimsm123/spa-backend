@@ -276,6 +276,10 @@ class BusinessService
     /** @param array<string, mixed> $filters */
     private function applyBusinessFilters(Builder $query, array $filters, bool $catalog = false, ?string $categoryColumn = null, bool $withDistance = true): void
     {
+        if (isset($filters['business_id'])) {
+            $query->where('businesses.id', $filters['business_id']);
+        }
+
         if ($withDistance) {
             $query->with('locations');
         }

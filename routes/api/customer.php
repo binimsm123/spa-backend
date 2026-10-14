@@ -21,8 +21,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
     Route::post('business/register', [BusinessProfileController::class, 'register']);
 
     // Home + discovery
-    Route::get('home', [HomeController::class, 'home']);
-    Route::get('newHome', [HomeController::class, 'newHome']);
+    Route::get('home', [HomeController::class, 'newHome']);
+    // Route::get('newHome', [HomeController::class, 'newHome']);
     Route::get('businesses', [HomeController::class, 'businesses']);
     Route::get('businesses/{business}', [HomeController::class, 'businessDetail']);
 

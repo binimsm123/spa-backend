@@ -36,6 +36,7 @@ class BusinessCatalogRequest extends FormRequest
             'location_service' => ['sometimes', 'boolean'],
             'verified_only' => ['sometimes', 'boolean'],
             'category_id' => ['sometimes', 'ulid'],
+            'business_id' => ['sometimes', 'ulid'],
             'sort' => ['sometimes', 'in:rating,name,newest'],
             'page' => ['sometimes', 'integer', 'min:1'],
             'business_page' => ['sometimes', 'integer', 'min:1'],

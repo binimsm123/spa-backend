@@ -123,6 +123,27 @@ it('validates catalog filters before querying', function (array $filters, string
     'oversized business page' => [['businesses_per_page' => 101], 'businesses_per_page'],
     'invalid location text' => [['location' => ['Kathmandu']], 'location'],
     'invalid sorting' => [['sort' => 'invalid'], 'sort'],
+    'invalid business id' => [['business_id' => 'invalid'], 'business_id'],
+]);
+
+it('filters the catalog by business id alongside search and eligibility filters', function (string $endpoint, string $businessPath, string $collectionPath): void {
+    $category = Category::query()->create(['name' => 'Wellness Therapy', 'slug' => 'wellness-therapy', 'is_active' => true]);
+    [$business] = catalogBusiness($category);
+    catalogBusiness($category);
+    $this->actingAs(User::factory()->create(), 'sanctum');
+    $query = http_build_query(['business_id' => $business->id, 'q' => 'therapy', 'category_id' => $category->id]);
+
+    $this->getJson($endpoint.'?'.$query)->assertOk()
+        ->assertJsonCount(1, $businessPath)->assertJsonPath($businessPath.'.0.id', $business->id);
+    $this->getJson($endpoint.'?'.$query.'&city=Missing')->assertOk()->assertJsonCount(0, $collectionPath);
+
+    $business->update(['is_online' => false]);
+
+    $this->getJson($endpoint.'?'.$query)->assertOk()->assertJsonCount(0, $collectionPath);
+})->with([
+    'home' => ['/api/v1/home', 'data.categories.0.businesses', 'data.categories'],
+    'new home' => ['/api/v1/newHome', 'data.categories.0.businesses', 'data.categories'],
+    'businesses' => ['/api/v1/businesses', 'data.items', 'data.items'],
 ]);
 
 it('shares service search and boolean filters between home and business listings', function (): void {
