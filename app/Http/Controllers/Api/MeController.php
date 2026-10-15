@@ -8,10 +8,13 @@ use App\Http\Requests\Profile\UpdateLocationRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Models\BusinessLocation;
+use App\Models\User;
 use App\Services\NotificationService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MeController extends Controller
 {
@@ -24,6 +27,18 @@ class MeController extends Controller
     public function me(Request $request): JsonResponse
     {
         return $this->success((new ProfileData($request->user()))->toArray(), 'Profile loaded.');
+    }
+
+    public function personalDocument(Request $request, string $document): StreamedResponse
+    {
+        abort_unless(in_array($document, User::KYC_DOCUMENT_TYPES, true), 404);
+        $path = $request->user()->kyc_document[$document] ?? null;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path, $document.'.'.pathinfo($path, PATHINFO_EXTENSION), [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function locations(): JsonResponse

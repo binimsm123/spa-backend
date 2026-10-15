@@ -25,9 +25,11 @@ class BusinessProfileController extends Controller
 
     public function register(RegisterBusinessRequest $request): JsonResponse
     {
+        // dd($request->all());
         $business = $this->businesses->register($request->user(), $request->validated());
         $data = BusinessResource::make($business)->resolve();
         $data['kyc'] = $business->kycSummary();
+        $data['personal_kyc'] = $request->user()->kycSummary();
         $data['my_role'] = BusinessUserRole::Owner->value;
         $data['user_roles'] = $request->user()->getRoleNames();
 
@@ -40,7 +42,7 @@ class BusinessProfileController extends Controller
         $path = $this->businesses->documentPath($business, $document);
         abort_unless($path, 404);
 
-        return Storage::disk('local')->download($path, $document.'.'.pathinfo($path, PATHINFO_EXTENSION), ['Cache-Control' => 'private, no-store']);
+        return Storage::disk('local')->response($path, $document.'.'.pathinfo($path, PATHINFO_EXTENSION), ['Cache-Control' => 'private, no-store']);
     }
 
     /**

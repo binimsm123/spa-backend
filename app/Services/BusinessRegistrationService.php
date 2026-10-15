@@ -25,7 +25,9 @@ class BusinessRegistrationService
     {
         $businessId = (string) Str::ulid();
         $paths = [];
+        $personalPaths = [];
         $heroImagePath = null;
+        $dob = Arr::pull($data, 'dob');
 
         try {
             if (isset($data['hero_image'])) {
@@ -55,7 +57,19 @@ class BusinessRegistrationService
                 unset($data[$type]);
             }
 
-            return DB::transaction(function () use ($owner, $data, $businessId, $paths): Business {
+            foreach ($data['personal_kyc_document'] ?? [] as $type => $file) {
+                /** @var UploadedFile $file */
+                $path = $file->store('user-kyc/'.$owner->getKey(), 'local');
+
+                if ($path === false) {
+                    throw new RuntimeException('Unable to store personal verification document.');
+                }
+
+                $personalPaths[$type] = $path;
+            }
+            unset($data['personal_kyc_document']);
+
+            return DB::transaction(function () use ($owner, $data, $businessId, $paths, $personalPaths, $dob): Business {
                 if (isset($data['locations']) && is_array($data['locations'])) {
                     $data = array_replace($data, $this->locations->serviceFlags($data['locations']));
                 }
@@ -71,16 +85,29 @@ class BusinessRegistrationService
                     'is_online' => false,
                 ])->save();
 
-                $this->locations->save($business, $data);
+                // Disable the legacy top-level address fallback for registration.
+                // $this->locations->save($business, $data);
+                $this->locations->save($business, Arr::only($data, ['locations']));
                 $this->categories->save($business, $data);
 
                 $business->members()->attach($owner->getKey(), ['role' => BusinessUserRole::Owner->value, 'is_active' => true]);
                 $owner->assignRole(BusinessUserRole::Owner->value);
 
+                $ownerData = [];
+                if ($personalPaths !== []) {
+                    $ownerData['kyc_document'] = $personalPaths;
+                }
+                if ($dob !== null) {
+                    $ownerData['dob'] = $dob;
+                }
+                if ($ownerData !== []) {
+                    $owner->forceFill($ownerData)->save();
+                }
+
                 return $business->refresh()->load(isset($data['category_ids']) ? ['locations', 'categories'] : ['locations']);
             });
         } catch (Throwable $exception) {
-            Storage::disk('local')->delete(array_values($paths));
+            Storage::disk('local')->delete(array_merge(array_values($paths), array_values($personalPaths)));
 
             if ($heroImagePath !== null) {
                 Storage::disk('public')->delete($heroImagePath);

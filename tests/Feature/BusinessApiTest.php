@@ -297,7 +297,7 @@ it('replaces the business image and individual KYC uploads before verification',
     Storage::disk('local')->put($retainedDocument, 'identity');
     $business->forceFill(['is_verified' => false])->save();
     $business->forceFill(['hero_image_path' => $oldImage, 'kyc_documents' => [
-        'vat_pan_document' => $oldDocument, 'owner_identity_front' => $retainedDocument,
+        'vat_pan_document' => $oldDocument, 'business_registration_document' => $retainedDocument,
     ]])->save();
     $document = UploadedFile::fake()->create('pan.pdf', 100, 'application/pdf');
 
@@ -313,7 +313,7 @@ it('replaces the business image and individual KYC uploads before verification',
     Storage::disk('local')->assertExists($business->kyc_documents['vat_pan_document']);
     Storage::disk('local')->assertMissing($oldDocument);
     Storage::disk('local')->assertExists($retainedDocument);
-    expect($business->kyc_documents['owner_identity_front'])->toBe($retainedDocument)
+    expect($business->kyc_documents['business_registration_document'])->toBe($retainedDocument)
         ->and($business->is_verified)->toBeFalse();
 })->with(['top level documents' => false, 'nested KYC documents' => true]);
 
@@ -363,9 +363,9 @@ it('rejects invalid image and KYC update uploads without changing the business',
         '_method' => 'PATCH',
         'hero_image' => UploadedFile::fake()->create('spa.pdf', 100, 'application/pdf'),
         'kyc_documents' => ['vat_pan_document' => 'client-supplied/path.pdf'],
-        'owner_identity_front' => UploadedFile::fake()->image('identity.jpg')->size(5121),
+        'business_registration_document' => UploadedFile::fake()->image('identity.jpg')->size(5121),
     ], ['Accept' => 'application/json'])->assertUnprocessable()
-        ->assertJsonValidationErrors(['hero_image', 'kyc_documents.vat_pan_document', 'owner_identity_front']);
+        ->assertJsonValidationErrors(['hero_image', 'kyc_documents.vat_pan_document', 'business_registration_document']);
 
     expect($business->refresh()->hero_image_path)->toBeNull()
         ->and($business->kyc_documents)->toBeNull();

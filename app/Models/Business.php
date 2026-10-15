@@ -18,9 +18,6 @@ class Business extends Model
         'business_registration_document',
         'ward_registration_document',
         'municipality_registration_document',
-        'owner_identity_front',
-        'owner_identity_back',
-        'nid_front',
     ];
 
     protected $hidden = ['kyc_documents'];
@@ -71,7 +68,7 @@ class Business extends Model
                 ->filter(fn (string $type): bool => isset($this->kyc_documents[$type]))
                 ->map(fn (string $type): array => [
                     'type' => $type,
-                    'download_url' => route($documentRoute, ['business' => $this->getKey(), 'document' => $type]),
+                    'view_url' => route($documentRoute, ['business' => $this->getKey(), 'document' => $type]),
                 ])
                 ->values()
                 ->all(),

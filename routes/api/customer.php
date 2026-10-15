@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
     // Profile
     Route::get('users/me', [MeController::class, 'me']);
+    Route::get('users/me/kyc-documents/{document}', [MeController::class, 'personalDocument'])->name('users.personal-documents.show');
     Route::patch('users/me', [MeController::class, 'updateMe']);
     Route::get('locations', [MeController::class, 'locations']);
     Route::patch('users/me/location', [MeController::class, 'updateLocation']);

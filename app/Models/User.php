@@ -19,11 +19,19 @@ class User extends Authenticatable
 {
     use BaseNotifiable, HasApiTokens, HasFactory, HasRoles, HasUlid, SoftDeletes;
 
+    public const KYC_DOCUMENT_TYPES = [
+        'pan',
+        'citizenship_front',
+        'citizenship_back',
+        'nid',
+    ];
+
     protected $fillable = [
         'mobile',
         'email',
         'password',
         'display_name',
+        'dob',
         'image',
         'timezone',
         'address',
@@ -38,16 +46,33 @@ class User extends Authenticatable
 
     protected $hidden = [
         'password',
+        'kyc_document',
     ];
 
     protected function casts(): array
     {
         return [
+            'dob' => 'date:Y-m-d',
+            'kyc_document' => 'array',
             'is_active' => 'boolean',
             'reward_points' => 'integer',
             'mobile_verified_at' => 'datetime',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+        ];
+    }
+
+    public function kycSummary(): array
+    {
+        return [
+            'documents' => collect(self::KYC_DOCUMENT_TYPES)
+                ->filter(fn (string $type): bool => isset($this->kyc_document[$type]))
+                ->map(fn (string $type): array => [
+                    'type' => $type,
+                    'view_url' => route('users.personal-documents.show', ['document' => $type]),
+                ])
+                ->values()
+                ->all(),
         ];
     }
 

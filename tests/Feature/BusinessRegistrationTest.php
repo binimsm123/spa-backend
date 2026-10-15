@@ -15,15 +15,17 @@ function businessRegistrationPayload(array $overrides = []): array
     return [
         'name' => 'Kamal Spa',
         'phone_number' => '+9779800000000',
-        'address' => 'Street 12',
-        'city' => 'Kathmandu',
+        'locations' => [[
+            'address' => 'Street 12',
+            'city' => 'Kathmandu',
+            'latitude' => 27.7,
+            'longitude' => 85.3,
+            'service_availability' => ($overrides['home_service'] ?? false) && ! ($overrides['location_service'] ?? true) ? 'home' : 'on_site',
+        ]],
         'vat_pan_document' => UploadedFile::fake()->create('pan.pdf', 100, 'application/pdf'),
         'business_registration_document' => UploadedFile::fake()->image('registration.jpg'),
         'ward_registration_document' => UploadedFile::fake()->image('ward.png'),
         'municipality_registration_document' => UploadedFile::fake()->image('municipality.png'),
-        'nid_front' => UploadedFile::fake()->image('nid.png'),
-        'owner_identity_front' => UploadedFile::fake()->image('front.jpg'),
-        'owner_identity_back' => UploadedFile::fake()->image('back.png'),
         ...$overrides,
     ];
 }
@@ -54,13 +56,13 @@ it('registers a pending business with a scoped owner and private KYC documents',
         ->assertJsonMissingPath('data.kyc.owner_identity_type')
         ->assertJsonMissingPath('data.kyc.vat_pan_number')
         ->assertJsonMissingPath('data.kyc.registration_number')
-        ->assertJsonCount(7, 'data.kyc.documents')
+        ->assertJsonCount(4, 'data.kyc.documents')
         ->assertJsonMissingPath('data.kyc_documents');
 
     $business = Business::query()->findOrFail($response->json('data.id'));
     $response->assertJsonPath('data.kyc.documents.0.type', 'vat_pan_document')
-        ->assertJsonPath('data.kyc.documents.0.download_url', url('/api/v1/business/'.$business->getKey().'/documents/vat_pan_document'));
-    $this->get($response->json('data.kyc.documents.0.download_url'))->assertOk()->assertDownload('vat_pan_document.pdf');
+        ->assertJsonPath('data.kyc.documents.0.view_url', url('/api/v1/business/'.$business->getKey().'/documents/vat_pan_document'));
+    $this->get($response->json('data.kyc.documents.0.view_url'))->assertOk()->assertHeader('Content-Disposition', 'inline; filename='.'vat_pan_document.pdf');
     $this->assertDatabaseHas('business_locations', [
         'business_id' => $business->getKey(), 'address' => 'Street 12', 'city' => 'Kathmandu', 'latitude' => 27.7, 'longitude' => 85.3,
     ]);
@@ -73,7 +75,7 @@ it('registers a pending business with a scoped owner and private KYC documents',
 
     $this->getJson('/api/v1/business/my')->assertOk()->assertJsonPath('data.items.0.id', $business->getKey())
         ->assertJsonMissingPath('data.items.0.kyc');
-    $this->getJson('/api/v1/business/'.$business->getKey())->assertOk()->assertJsonCount(7, 'data.kyc.documents');
+    $this->getJson('/api/v1/business/'.$business->getKey())->assertOk()->assertJsonCount(4, 'data.kyc.documents');
 })->with([
     'without removed fields' => [[]],
     'with service options and staff count' => [[
@@ -93,9 +95,9 @@ it('requires the business information and all KYC documents', function (): void 
 
     $this->actingAs($owner, 'sanctum')->postJson('/api/v1/business/register', [])
         ->assertUnprocessable()->assertJsonValidationErrors([
-            'name', 'phone_number', 'address', 'city',
+            'name', 'phone_number', 'locations',
             'vat_pan_document', 'business_registration_document',
-            'ward_registration_document', 'municipality_registration_document', 'nid_front', 'owner_identity_front', 'owner_identity_back',
+            'ward_registration_document', 'municipality_registration_document',
         ]);
     $this->assertDatabaseCount('businesses', 0);
     expect(Storage::disk('local')->allFiles())->toBe([]);
@@ -121,11 +123,14 @@ it('rejects invalid coordinates, timezones, and invalid or oversized uploads', f
     $owner = User::factory()->create();
 
     $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload([
-        'owner_identity_front' => UploadedFile::fake()->create('front.pdf', 5121, 'application/pdf'),
-        'owner_identity_back' => UploadedFile::fake()->create('back.txt', 10, 'text/plain'),
-        'latitude' => 91, 'longitude' => -181, 'timezone' => 'Invalid/Timezone',
+        'ward_registration_document' => UploadedFile::fake()->create('ward.pdf', 5121, 'application/pdf'),
+        'municipality_registration_document' => UploadedFile::fake()->create('municipality.txt', 10, 'text/plain'),
+        'locations' => [[
+            'address' => 'Street 12', 'city' => 'Kathmandu', 'latitude' => 91, 'longitude' => -181, 'service_availability' => 'on_site',
+        ]],
+        'timezone' => 'Invalid/Timezone',
     ]), ['Accept' => 'application/json'])->assertUnprocessable()
-        ->assertJsonValidationErrors(['owner_identity_front', 'owner_identity_back', 'latitude', 'longitude', 'timezone']);
+        ->assertJsonValidationErrors(['ward_registration_document', 'municipality_registration_document', 'locations.0.latitude', 'locations.0.longitude', 'timezone']);
     $this->assertDatabaseCount('businesses', 0);
     expect(Storage::disk('local')->allFiles())->toBe([]);
 });
@@ -140,7 +145,7 @@ it('allows owners and authorized admins to download documents but blocks outside
     $business = app(BusinessRegistrationService::class)->register($owner, businessRegistrationPayload());
     $documentUrl = '/api/v1/business/'.$business->getKey().'/documents/vat_pan_document';
 
-    $this->actingAs($owner, 'sanctum')->get($documentUrl)->assertOk()->assertDownload('vat_pan_document.pdf');
+    $this->actingAs($owner, 'sanctum')->get($documentUrl)->assertOk()->assertHeader('Content-Disposition', 'inline; filename='.'vat_pan_document.pdf');
     $this->getJson('/api/v1/business/'.$business->getKey().'/documents/unknown')->assertNotFound();
 
     $outsider = User::factory()->create();
@@ -153,10 +158,10 @@ it('allows owners and authorized admins to download documents but blocks outside
 
     $admin = actingAsSuperadmin();
     $this->actingAs($admin, 'sanctum')->get('/api/v1/admin/businesses/'.$business->getKey().'/documents/vat_pan_document')
-        ->assertOk()->assertDownload('vat_pan_document.pdf');
+        ->assertOk()->assertHeader('Content-Disposition', 'inline; filename='.'vat_pan_document.pdf');
     $this->getJson('/api/v1/admin/businesses/'.$business->getKey())->assertOk()->assertJsonMissingPath('data.kyc.vat_pan_number')
         ->assertJsonMissingPath('data.kyc.registration_number')
-        ->assertJsonPath('data.kyc.documents.0.download_url', url('/api/v1/admin/businesses/'.$business->getKey().'/documents/vat_pan_document'));
+        ->assertJsonPath('data.kyc.documents.0.view_url', url('/api/v1/admin/businesses/'.$business->getKey().'/documents/vat_pan_document'));
 
     $business->update(['status' => 'active', 'is_online' => true]);
     $this->actingAs($outsider, 'sanctum')->getJson('/api/v1/businesses/'.$business->getKey())->assertOk()
@@ -170,6 +175,7 @@ it('rolls back the business and removes uploaded files if owner assignment fails
 
     expect(fn () => app(BusinessRegistrationService::class)->register($unsavedOwner, businessRegistrationPayload([
         'hero_image' => UploadedFile::fake()->image('spa.jpg'),
+        'personal_kyc_document' => personalKycDocumentPayload(),
     ])))
         ->toThrow(QueryException::class);
 
@@ -281,4 +287,205 @@ it('registers multiple locations without redundant business and location queries
     expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update `businesses`')))->toHaveCount(0);
     expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from `business_locations`')))->toHaveCount(1);
     $this->assertDatabaseHas('business_users', ['business_id' => $response->json('data.id'), 'user_id' => $owner->id, 'role' => 'owner']);
+});
+
+function personalKycDocumentPayload(): array
+{
+    return [
+        'pan' => UploadedFile::fake()->create('personal-pan.pdf', 100, 'application/pdf'),
+        'citizenship_front' => UploadedFile::fake()->image('citizenship-front.jpg'),
+        'citizenship_back' => UploadedFile::fake()->image('citizenship-back.png'),
+        'nid' => UploadedFile::fake()->image('personal-nid.png'),
+    ];
+}
+
+it('stores personal KYC documents privately on the registering user', function (): void {
+    Storage::fake('local');
+    Storage::fake('public');
+    $owner = User::factory()->create();
+    $otherUser = User::factory()->create();
+
+    $response = $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload([
+        'personal_kyc_document' => personalKycDocumentPayload(),
+    ]), ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonMissingPath('data.personal_kyc_document')
+        ->assertJsonMissingPath('data.kyc_document');
+
+    $documents = $owner->refresh()->kyc_document;
+    expect($documents)->toHaveCount(4)->toHaveKeys(['pan', 'citizenship_front', 'citizenship_back', 'nid']);
+    foreach ($documents as $path) {
+        expect($path)->toStartWith('user-kyc/'.$owner->getKey().'/');
+    }
+    Storage::disk('local')->assertExists(array_values($documents));
+    Storage::disk('public')->assertMissing(array_values($documents));
+    $this->assertDatabaseHas('users', [
+        'id' => $owner->id,
+        'kyc_document->pan' => $documents['pan'],
+        'kyc_document->citizenship_front' => $documents['citizenship_front'],
+        'kyc_document->citizenship_back' => $documents['citizenship_back'],
+        'kyc_document->nid' => $documents['nid'],
+    ]);
+    expect($otherUser->refresh()->kyc_document)->toBeNull();
+    expect($owner->toArray())->not->toHaveKey('kyc_document');
+    $business = Business::query()->findOrFail($response->json('data.id'));
+    expect($business->kyc_documents)->not->toHaveKeys(['pan', 'citizenship_front', 'citizenship_back', 'nid']);
+});
+
+it('preserves existing personal KYC when the optional group is omitted or null', function (array $extraFields): void {
+    Storage::fake('local');
+    $owner = User::factory()->create();
+    $documents = ['pan' => 'user-kyc/existing/pan.pdf'];
+    $owner->forceFill(['kyc_document' => $documents])->save();
+    Storage::disk('local')->put($documents['pan'], 'existing document');
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload($extraFields), ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    expect($owner->refresh()->kyc_document)->toBe($documents);
+    Storage::disk('local')->assertExists($documents['pan']);
+})->with([
+    'omitted' => [[]],
+    'null' => [['personal_kyc_document' => null]],
+]);
+
+it('rejects incomplete or invalid personal KYC before saving uploads', function (string $invalidCase, string $errorField): void {
+    Storage::fake('local');
+    $owner = User::factory()->create();
+    $documents = personalKycDocumentPayload();
+
+    if ($invalidCase === 'missing') {
+        unset($documents['citizenship_back']);
+    } elseif ($invalidCase === 'type') {
+        $documents['pan'] = UploadedFile::fake()->create('pan.txt', 10, 'text/plain');
+    } elseif ($invalidCase === 'size') {
+        $documents['nid'] = UploadedFile::fake()->create('nid.pdf', 5121, 'application/pdf');
+    } elseif ($invalidCase === 'unknown') {
+        $documents['unexpected'] = UploadedFile::fake()->image('extra.png');
+    } elseif ($invalidCase === 'empty') {
+        $documents = [];
+    } else {
+        $documents = 'untrusted/client/path.pdf';
+    }
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload([
+        'personal_kyc_document' => $documents,
+    ]), ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors([$errorField]);
+
+    $this->assertDatabaseCount('businesses', 0);
+    expect($owner->refresh()->kyc_document)->toBeNull();
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+})->with([
+    'missing citizenship back' => ['missing', 'personal_kyc_document.citizenship_back'],
+    'unsupported file type' => ['type', 'personal_kyc_document.pan'],
+    'file above 5 MB' => ['size', 'personal_kyc_document.nid'],
+    'unknown document key' => ['unknown', 'personal_kyc_document'],
+    'client path instead of uploads' => ['shape', 'personal_kyc_document'],
+    'empty document group' => ['empty', 'personal_kyc_document.pan'],
+]);
+
+it('cleans up new uploads and preserves existing personal KYC if personal storage fails', function (): void {
+    Storage::fake('local');
+    Storage::fake('public');
+    $owner = User::factory()->create();
+    $existing = ['pan' => 'user-kyc/existing/pan.pdf'];
+    $owner->forceFill(['kyc_document' => $existing])->save();
+    Storage::disk('local')->put($existing['pan'], 'existing document');
+    $documents = personalKycDocumentPayload();
+    $failedFile = Mockery::mock(UploadedFile::class);
+    $failedFile->shouldReceive('store')->once()->with('user-kyc/'.$owner->id, 'local')->andReturn(false);
+    $documents['citizenship_front'] = $failedFile;
+
+    expect(fn () => app(BusinessRegistrationService::class)->register($owner, businessRegistrationPayload([
+        'hero_image' => UploadedFile::fake()->image('spa.jpg'),
+        'personal_kyc_document' => $documents,
+    ])))->toThrow(RuntimeException::class, 'Unable to store personal verification document.');
+
+    $this->assertDatabaseCount('businesses', 0);
+    expect($owner->refresh()->kyc_document)->toBe($existing);
+    expect(Storage::disk('local')->allFiles())->toBe([$existing['pan']]);
+    expect(Storage::disk('public')->allFiles())->toBe([]);
+});
+
+it('saves the supplied date of birth on the registering user', function (?string $existingDob): void {
+    Storage::fake('local');
+    $owner = User::factory()->create(['dob' => $existingDob]);
+    $otherUser = User::factory()->create(['dob' => '1990-01-01']);
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload([
+        'dob' => '1995-04-15',
+        'personal_kyc_document' => personalKycDocumentPayload(),
+    ]), ['Accept' => 'application/json'])->assertCreated();
+
+    $this->assertDatabaseHas('users', ['id' => $owner->id, 'dob' => '1995-04-15']);
+    $this->assertDatabaseHas('users', ['id' => $otherUser->id, 'dob' => '1990-01-01']);
+    $documents = $owner->refresh()->kyc_document;
+    expect($documents)->toHaveCount(4);
+    Storage::disk('local')->assertExists(array_values($documents));
+})->with([
+    'previously unset' => [null],
+    'updates existing DOB' => ['1994-03-10'],
+]);
+
+it('preserves the users date of birth when registration DOB is not filled', function (array $extraFields): void {
+    Storage::fake('local');
+    $owner = User::factory()->create(['dob' => '1995-04-15']);
+
+    $response = $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload($extraFields), ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    $this->assertDatabaseHas('users', ['id' => $owner->id, 'dob' => '1995-04-15']);
+    $business = Business::query()->findOrFail($response->json('data.id'));
+    Storage::disk('local')->assertExists(array_values($business->kyc_documents));
+})->with([
+    'omitted' => [[]],
+    'null' => [['dob' => null]],
+    'empty multipart text field' => [['dob' => '']],
+]);
+
+it('rejects invalid registration DOB without changing the user or storing files', function (string $dob): void {
+    Storage::fake('local');
+    $owner = User::factory()->create(['dob' => '1995-04-15']);
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload([
+        'dob' => $dob,
+    ]), ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors(['dob']);
+
+    $this->assertDatabaseHas('users', ['id' => $owner->id, 'dob' => '1995-04-15']);
+    $this->assertDatabaseCount('businesses', 0);
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+})->with([
+    'invalid date' => ['not-a-date'],
+    'invalid calendar day' => ['1995-02-30'],
+    'incorrect format' => ['15/04/1995'],
+]);
+
+it('ignores legacy top level addresses when registering locations', function (): void {
+    Storage::fake('local');
+    $owner = User::factory()->create();
+
+    $response = $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload([
+        'address' => 'Ignored address', 'city' => 'Ignored city', 'latitude' => 91, 'longitude' => -181,
+    ]), ['Accept' => 'application/json'])->assertCreated()->assertJsonCount(1, 'data.locations')
+        ->assertJsonPath('data.address', 'Street 12')->assertJsonPath('data.city', 'Kathmandu');
+
+    $this->assertDatabaseHas('business_locations', [
+        'business_id' => $response->json('data.id'), 'address' => 'Street 12', 'city' => 'Kathmandu', 'latitude' => 27.7, 'longitude' => 85.3,
+    ]);
+    $this->assertDatabaseMissing('business_locations', ['city' => 'Ignored city']);
+    $business = Business::query()->findOrFail($response->json('data.id'));
+    Storage::disk('local')->assertExists(array_values($business->kyc_documents));
+});
+
+it('rejects registration with only a legacy address and no locations', function (): void {
+    Storage::fake('local');
+    $owner = User::factory()->create();
+    $payload = businessRegistrationPayload(['address' => 'Street 12', 'city' => 'Kathmandu', 'latitude' => 27.7, 'longitude' => 85.3]);
+    unset($payload['locations']);
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', $payload, ['Accept' => 'application/json'])
+        ->assertUnprocessable()->assertJsonValidationErrors(['locations']);
+
+    $this->assertDatabaseCount('businesses', 0);
+    $this->assertDatabaseCount('business_locations', 0);
+    expect(Storage::disk('local')->allFiles())->toBe([]);
 });

@@ -21,6 +21,7 @@ final readonly class ProfileData
             'mobile_number' => $this->user->mobile,
             'mobile_verified' => $this->user->mobile_verified_at !== null,
             'avatar_url' => $this->user->image ? url('storage/'.$this->user->image) : null,
+            'personal_kyc' => $this->user->kycSummary(),
             'updated_at' => $this->user->updated_at?->toIso8601String(),
         ];
     }
