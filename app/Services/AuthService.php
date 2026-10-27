@@ -328,9 +328,62 @@ class AuthService
      */
     public function verifyPasswordResetCode(VerificationCode $verification, string $code): string
     {
-        $this->consumeCode($verification->user, VerificationType::PasswordReset, $code, $verification->getKey());
+        $result = DB::transaction(function () use ($verification, $code): string|ApiException {
+            $current = VerificationCode::query()->whereKey($verification->getKey())
+                ->where('type', VerificationType::PasswordReset->value)
+                ->whereNull('consumed_at')->lockForUpdate()->first();
 
-        return $this->createRefreshToken($verification->user);
+            if ($current === null || $current->user === null || ! $current->user->is_active) {
+                return new ApiException(ErrorCode::InvalidVerificationCode, 'No active verification code. Request a new one.');
+            }
+            if ($current->expires_at->lte(now())) {
+                return new ApiException(ErrorCode::VerificationCodeExpired, 'This code has expired. Request a new one.');
+            }
+            if ($current->attempts >= 5 || ! hash_equals($current->code, $code)) {
+                if ($current->attempts < 5) {
+                    $current->increment('attempts');
+                }
+
+                return new ApiException(ErrorCode::InvalidVerificationCode, 'The verification code is incorrect or no longer usable.');
+            }
+
+            $token = Str::random(60);
+            $current->forceFill([
+                'consumed_at' => now(),
+                'reset_token_hash' => hash('sha256', $token),
+                'reset_token_expires_at' => now()->addMinutes(self::CODE_TTL_MINUTES),
+            ])->save();
+
+            return $token;
+        });
+
+        if ($result instanceof ApiException) {
+            throw $result;
+        }
+
+        return $result;
+    }
+
+    public function resetPasswordWithToken(string $token, string $password): void
+    {
+        DB::transaction(function () use ($token, $password): void {
+            $verification = VerificationCode::query()->with('user')
+                ->where('type', VerificationType::PasswordReset->value)
+                ->where('reset_token_hash', hash('sha256', $token))
+                ->whereNotNull('consumed_at')
+                ->where('reset_token_expires_at', '>', now())
+                ->lockForUpdate()->first();
+
+            if ($verification === null || $verification->user === null || ! $verification->user->is_active) {
+                throw new ApiException(ErrorCode::InvalidResetToken, 'Password reset token is invalid or expired.');
+            }
+
+            $this->resetPassword($verification->user, $password);
+            $this->revokeAllSessions($verification->user);
+            VerificationCode::query()->where('user_id', $verification->user_id)
+                ->where('type', VerificationType::PasswordReset->value)
+                ->update(['consumed_at' => now(), 'reset_token_hash' => null, 'reset_token_expires_at' => null]);
+        });
     }
 
     public function resetPassword(User $user, string $newPassword): void
@@ -346,14 +399,7 @@ class AuthService
 
         $user->forceFill(['password' => $new])->save();
 
-        // Revoke other refresh sessions; the current session survives.
-        $currentRefresh = request()?->bearerToken();
-
-        RefreshToken::query()
-            ->where('user_id', $user->getKey())
-            ->whereNull('revoked_at')
-            ->when($currentRefresh !== null, fn ($q) => $q->where('token_hash', '!=', hash('sha256', $currentRefresh)))
-            ->update(['revoked_at' => now()]);
+        $this->revokeAllSessions($user);
     }
 
     // -------------------------------------------------------------------------
@@ -362,40 +408,35 @@ class AuthService
 
     public function issueVerificationCode(User $user, VerificationType $type): VerificationCode
     {
-        // Enforce the resend cooldown.
-        $latest = VerificationCode::query()
-            ->where('user_id', $user->getKey())
-            ->where('type', $type->value)
-            ->whereNull('consumed_at')
-            ->orderByDesc('created_at')
-            ->first();
+        return DB::transaction(function () use ($user, $type): VerificationCode {
+            $latest = VerificationCode::query()->where('user_id', $user->getKey())
+                ->where('type', $type->value)->orderByDesc('created_at')->orderByDesc('id')
+                ->lockForUpdate()->first();
 
-        if ($latest !== null && $latest->last_sent_at !== null && $latest->last_sent_at->gt(now()->subSeconds(self::RESEND_COOLDOWN_SECONDS))) {
-            throw new ApiException(ErrorCode::Throttled, 'Please wait before requesting another code.');
-        }
+            if ($latest?->last_sent_at?->gt(now()->subSeconds(self::RESEND_COOLDOWN_SECONDS))) {
+                throw new ApiException(ErrorCode::Throttled, 'Please wait before requesting another code.');
+            }
 
-        // Temporary test-only OTP. Replace with random generation before production.
-        $code = (string) config('spa.auth.static_verification_code', '1234');
+            VerificationCode::query()->where('user_id', $user->getKey())
+                ->where('type', $type->value)
+                ->update(['consumed_at' => now(), 'reset_token_hash' => null, 'reset_token_expires_at' => null]);
 
-        // $code = (string) random_int(1000, 9999);
-        return VerificationCode::query()->create([
-            'user_id' => $user->getKey(),
-            'type' => $type->value,
-            'code' => $code,
-            'expires_at' => now()->addMinutes(self::CODE_TTL_MINUTES),
-            'last_sent_at' => now(),
-        ]);
+            $code = app()->environment(['local', 'testing'])
+                ? (string) config('spa.auth.static_verification_code', '1234')
+                : (string) random_int(1000, 9999);
 
-        /*
-         * Enable when real OTP delivery is ready. This dispatches after the
-         * transaction commits so SMS delivery runs in the queue worker and
-         * does not block the registration request.
-         *
-         * SendVerificationCodeJob::dispatch(
-         *     $user->mobile,
-         *     $this->verificationMessage($code, $type),
-         * )->afterCommit();
-         */
+            $verification = VerificationCode::query()->create([
+                'user_id' => $user->getKey(),
+                'type' => $type->value,
+                'code' => $code,
+                'expires_at' => now()->addMinutes(self::CODE_TTL_MINUTES),
+                'last_sent_at' => now(),
+            ]);
+
+            SendVerificationCodeJob::dispatch($user->mobile, $this->verificationMessage($code, $type))->afterCommit();
+
+            return $verification;
+        }, 3);
     }
 
     private function verificationMessage(string $code, VerificationType $type): string

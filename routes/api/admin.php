@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Admin\AdminReportController;
 use App\Http\Controllers\Api\Admin\AdminReviewController;
 use App\Http\Controllers\Api\Admin\AdminRewardController;
 use App\Http\Controllers\Api\Admin\AdminUserController;
+use App\Http\Controllers\Api\Business\BusinessOnboardingController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'throttle:admin', 'permission:admin.dashboard.view'])->prefix('admin')->group(function (): void {
@@ -29,6 +30,7 @@ Route::middleware(['auth:sanctum', 'throttle:admin', 'permission:admin.dashboard
     Route::middleware('permission:admin.businesses.manage')->group(function (): void {
         Route::get('businesses', [AdminBusinessController::class, 'index']);
         Route::get('businesses/{business}', [AdminBusinessController::class, 'show'])->whereUlid('business');
+        Route::get('businesses/{business}/onboarding/documents/{document}', [BusinessOnboardingController::class, 'document'])->whereUlid('business')->name('admin.businesses.onboarding.document');
         Route::get('businesses/{business}/documents/{document}', [AdminBusinessController::class, 'document'])->whereUlid('business')->name('admin.businesses.documents.show');
         Route::patch('businesses/{business}/state', [AdminBusinessController::class, 'changeState'])->whereUlid('business');
     });

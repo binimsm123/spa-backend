@@ -13,6 +13,8 @@ class VerificationCode extends Model
     protected $fillable = [
         'user_id',
         'mobile_number',
+        'reset_token_hash',
+        'reset_token_expires_at',
         'registration_token_hash',
         'registration_token_expires_at',
         'type',
@@ -29,6 +31,7 @@ class VerificationCode extends Model
         return [
             'type' => VerificationType::class,
             'registration_token_expires_at' => 'datetime',
+            'reset_token_expires_at' => 'datetime',
             'expires_at' => 'datetime',
             'attempts' => 'integer',
             'resent_count' => 'integer',

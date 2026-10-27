@@ -73,9 +73,14 @@ class Service extends Model
         return $this->hasMany(ServicePrice::class);
     }
 
+    public function photos(): HasMany
+    {
+        return $this->hasMany(ServicePhoto::class)->orderBy('position')->orderBy('id');
+    }
+
     public function currentPrices(): HasMany
     {
-        return $this->prices()->where('is_current', true);
+        return $this->prices()->where('is_current', true)->orderBy('duration')->orderBy('id');
     }
 
     public function currentPrice(): HasOne

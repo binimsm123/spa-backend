@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,6 +12,30 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if ($this->legacyMigrationApplied()) {
+            $tables = config('permission.table_names');
+            $columns = config('permission.column_names');
+            $role = $columns['role_pivot_key'] ?? 'role_id';
+            $permission = $columns['permission_pivot_key'] ?? 'permission_id';
+            $model = $columns['model_morph_key'];
+            $team = (config('permission.teams') || config('permission.testing')) ? [$columns['team_foreign_key']] : [];
+            $pivotTeam = config('permission.teams') ? [$columns['team_foreign_key']] : [];
+            $required = [
+                'permissions' => ['id', 'name', 'guard_name', 'created_at', 'updated_at'],
+                'roles' => ['id', 'name', 'guard_name', 'created_at', 'updated_at', ...$team],
+                'model_has_permissions' => [$permission, 'model_type', $model, ...$pivotTeam],
+                'model_has_roles' => [$role, 'model_type', $model, ...$pivotTeam],
+                'role_has_permissions' => [$permission, $role],
+            ];
+            foreach ($required as $key => $fields) {
+                if (! Schema::hasColumns($tables[$key], $fields)) {
+                    throw new RuntimeException("The legacy permission migration is recorded, but {$tables[$key]} is incomplete. Restore its schema before migrating.");
+                }
+            }
+
+            return;
+        }
+
         $teams = config('permission.teams');
         $tableNames = config('permission.table_names');
         $columnNames = config('permission.column_names');
@@ -124,6 +149,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // These tables remain owned by their original migration on upgraded databases.
+        if ($this->legacyMigrationApplied()) {
+            return;
+        }
+
         $tableNames = config('permission.table_names');
 
         throw_if(empty($tableNames), 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
@@ -133,5 +163,12 @@ return new class extends Migration
         Schema::dropIfExists($tableNames['model_has_permissions']);
         Schema::dropIfExists($tableNames['roles']);
         Schema::dropIfExists($tableNames['permissions']);
+    }
+
+    private function legacyMigrationApplied(): bool
+    {
+        // These migration files were renamed after existing installations had run them.
+        return DB::table(config('database.migrations.table', 'migrations'))
+            ->where('migration', '2026_09_29_075207_create_permission_tables')->exists();
     }
 };

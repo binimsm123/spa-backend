@@ -6,9 +6,12 @@ use App\Models\Business;
 use App\Models\BusinessClosure;
 use App\Models\BusinessHour;
 use App\Models\BusinessLocation;
+use App\Models\BusinessOnboarding;
 use App\Models\Category;
 use App\Models\Service;
 use App\Models\User;
+use App\Support\ApiException;
+use App\Support\ErrorCode;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -487,6 +490,9 @@ class BusinessService
             $updated = DB::transaction(function () use ($business, $data, &$newFiles, &$oldFiles): Business {
                 $locked = Business::query()->lockForUpdate()->findOrFail($business->getKey());
                 $kycFields = array_intersect(array_keys($data), [...Business::KYC_DOCUMENT_TYPES, 'kyc_documents']);
+                if (BusinessOnboarding::where('business_id', $locked->id)->exists() && array_intersect(array_keys($data), [...Business::KYC_DOCUMENT_TYPES, 'kyc_documents', 'name', 'phone_number']) !== []) {
+                    throw ApiException::conflict(ErrorCode::Conflict, 'Use the onboarding correction flow to change application details or documents.');
+                }
 
                 if ($locked->is_verified && $kycFields !== []) {
                     throw ValidationException::withMessages(array_fill_keys($kycFields, 'KYC documents cannot be updated after business verification.'));
