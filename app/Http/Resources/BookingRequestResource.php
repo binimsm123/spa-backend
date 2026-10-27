@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -13,7 +14,13 @@ class BookingRequestResource extends JsonResource
             'id' => $this->id,
             'business' => new BusinessResource($this->whenLoaded('business')),
             'business_id' => $this->business_id,
-            'service' => new ServiceResource($this->whenLoaded('service')),
+            'service_price_id' => $this->service_price_id,
+            'service' => $this->whenLoaded('service', function (): ServiceResource {
+                $service = clone $this->service;
+                $service->setRelation('currentPrices', new Collection($this->servicePrice ? [$this->servicePrice] : []));
+
+                return new ServiceResource($service);
+            }),
             'people_count' => (int) $this->people_count,
             'requested_date' => $this->requested_date?->toDateString(),
             'timezone' => $this->timezone,

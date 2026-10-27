@@ -3,6 +3,7 @@
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\BookingRequest;
+use App\Models\User;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
 use App\Support\ApiException;
@@ -22,6 +23,77 @@ it('returns available slots for a service and blocks past dates', function (): v
     // Past date is rejected.
     $this->getJson("/api/v1/businesses/{$service->business_id}/services/{$service->getKey()}/availability?business_id={$business->getKey()}&date=2020-01-01&timezone=UTC")
         ->assertStatus(422);
+});
+
+it('retains the selected service price and duration through availability proposal and confirmation', function (): void {
+    $user = User::factory()->create();
+    [$business, $service] = createBusinessWithService();
+    $price = $service->prices()->create(['price_minor' => 750000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
+    $date = now()->addDay()->toDateString();
+    $this->actingAs($user, 'sanctum');
+
+    $this->getJson("/api/v1/businesses/{$business->id}/services/{$service->id}/availability?date={$date}&service_price_id={$price->id}")
+        ->assertOk()->assertJsonPath('data.dates.0.slots.0.ends_at', '10:30')
+        ->assertJsonPath('data.service.price', 7500);
+    $response = $this->postJson('/api/v1/bookings/requests', [
+        'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id,
+        'requested_date' => $date, 'people_count' => 2,
+    ])->assertAccepted()->assertJsonPath('data.service_price_id', $price->id);
+    $request = BookingRequest::query()->findOrFail($response->json('data.booking_request_id'));
+    expect($request->servicePrice->id)->toBe($price->id);
+    $this->getJson('/api/v1/bookings/requests/'.$request->id)->assertOk()->assertJsonPath('data.service_price_id', $price->id);
+
+    app(BookingService::class)->proposeTimes($request, [$date.'T10:00:00'], $user);
+    $time = $request->refresh()->times()->firstOrFail();
+    expect($time->ends_at->format('H:i'))->toBe('11:30');
+    $booking = app(BookingService::class)->confirmRequest($user, $request, $time->id);
+
+    expect($booking->subtotal_minor)->toBe(1500000)
+        ->and($booking->items->first()->duration_minutes_snapshot)->toBe(90)
+        ->and($booking->items->first()->unit_price_minor)->toBe(750000);
+});
+
+it('rejects invalid service price selections without creating a booking request', function (string $kind): void {
+    $user = User::factory()->create();
+    [$business, $service, $price] = createBusinessWithService();
+    if ($kind === 'other service') {
+        [, , $price] = createBusinessWithService();
+    } elseif ($kind === 'inactive') {
+        $price->update(['is_current' => false]);
+    }
+    $priceId = match ($kind) {
+        'missing' => (string) Str::ulid(),
+        'malformed' => 'invalid',
+        default => $price->id,
+    };
+
+    $this->actingAs($user, 'sanctum')->postJson('/api/v1/bookings/requests', [
+        'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $priceId,
+        'requested_date' => now()->addDay()->toDateString(),
+    ])->assertUnprocessable()->assertJsonValidationErrors('service_price_id');
+    $this->assertDatabaseCount('booking_requests', 0);
+})->with(['other service', 'inactive', 'missing', 'malformed']);
+
+it('checks slot conflicts using the selected service price duration', function (): void {
+    $user = User::factory()->create();
+    [$business, $service] = createBusinessWithService();
+    $price = $service->prices()->create(['price_minor' => 750000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
+    $date = now()->addDay()->toDateString();
+    $bookings = app(BookingService::class);
+    $request = $bookings->createRequest($user, [
+        'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id, 'requested_date' => $date,
+    ]);
+    $bookings->proposeTimes($request, [$date.'T10:00:00'], $user);
+    Booking::query()->create([
+        'user_id' => $user->id, 'business_id' => $business->id, 'appointment_date' => $date,
+        'starts_at' => $date.' 11:00:00', 'ends_at' => $date.' 12:00:00', 'status' => 'confirmed',
+        'subtotal_minor' => 500000, 'total_minor' => 500000, 'currency' => 'NPR',
+    ]);
+
+    $this->actingAs($user, 'sanctum')->postJson('/api/v1/bookings/requests/'.$request->id.'/confirm', [
+        'time_id' => $request->refresh()->times()->firstOrFail()->id,
+    ])->assertConflict()->assertJsonPath('code', 'BOOKING_SLOT_CONFLICT');
+    $this->assertDatabaseCount('bookings', 1);
 });
 
 it('creates a booking request idempotently with the Idempotency-Key header', function (): void {

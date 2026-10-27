@@ -4,6 +4,7 @@ use App\Models\BusinessUser;
 use App\Models\Offer;
 use App\Models\ServicePrice;
 use App\Services\AvailabilityService;
+use App\Services\BookingService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,58 @@ function createBusinessOwner(): array
 
     return [$owner, $business];
 }
+
+it('lists only the price selected for each booking request even when requests share a service', function (): void {
+    [$owner, $business] = createBusinessOwner();
+    $service = $business->services()->firstOrFail();
+    $firstPrice = $service->prices()->firstOrFail();
+    $secondPrice = $service->prices()->create(['price_minor' => 750000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
+    $expectedPrices = [];
+    foreach ([$firstPrice, $secondPrice] as $price) {
+        $bookingRequest = app(BookingService::class)->createRequest($owner, [
+            'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id,
+            'requested_date' => now()->addDay()->toDateString(),
+        ]);
+        $expectedPrices[$bookingRequest->id] = $price->id;
+    }
+    $firstPrice->update(['is_current' => false]);
+
+    $response = $this->getJson('/api/v1/business/'.$business->id.'/bookings/requests')
+        ->assertOk()->assertJsonCount(2, 'data.items');
+
+    foreach ($response->json('data.items') as $item) {
+        expect($item['service']['service_prices'])->toHaveCount(1)
+            ->and($item['service']['service_prices'][0]['id'])->toBe($expectedPrices[$item['id']]);
+    }
+});
+
+it('returns no unrelated prices for a legacy request without a selected price', function (): void {
+    [$owner, $business] = createBusinessOwner();
+    $service = $business->services()->firstOrFail();
+    $bookingRequest = app(BookingService::class)->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id,
+        'requested_date' => now()->addDay()->toDateString(),
+    ]);
+    $bookingRequest->update(['service_price_id' => null]);
+
+    $this->getJson('/api/v1/business/'.$business->id.'/bookings/requests')->assertOk()
+        ->assertJsonCount(0, 'data.items.0.service.service_prices');
+});
+
+it('returns only the selected price when proposing or declining a booking request', function (string $action): void {
+    [$owner, $business] = createBusinessOwner();
+    $service = $business->services()->firstOrFail();
+    $price = $service->prices()->create(['price_minor' => 750000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
+    $date = now()->addDay()->toDateString();
+    $bookingRequest = app(BookingService::class)->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id, 'requested_date' => $date,
+    ]);
+
+    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/'.$action, [
+        'starts_at' => [$date.'T10:00:00'],
+    ])->assertOk()->assertJsonCount(1, 'data.service.service_prices')
+        ->assertJsonPath('data.service.service_prices.0.id', $price->id);
+})->with(['propose', 'decline']);
 
 it('lists only businesses the user manages', function (): void {
     [$owner, $business] = createBusinessOwner();

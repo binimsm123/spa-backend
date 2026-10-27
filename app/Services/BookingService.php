@@ -15,6 +15,7 @@ use App\Models\ServicePrice;
 use App\Models\User;
 use App\Support\ApiException;
 use App\Support\ErrorCode;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -50,6 +51,8 @@ class BookingService
 
             abort_unless($business->getKey() === $data['business_id'], 404);
 
+            $price = $this->resolvePrice($service, $data['service_price_id'] ?? null);
+
             $requestedDate = Carbon::parse($data['requested_date'])->startOfDay();
 
             if ($requestedDate->isPast()) {
@@ -67,6 +70,7 @@ class BookingService
             $request = $user->bookingRequests()->create([
                 'business_id' => $business->getKey(),
                 'service_id' => $service->getKey(),
+                'service_price_id' => $price->getKey(),
                 'people_count' => $peopleCount,
                 'requested_date' => $requestedDate,
                 'timezone' => $data['timezone'] ?? $business->timezone,
@@ -110,7 +114,7 @@ class BookingService
             $rows = [];
             foreach ($startsAtList as $startsAt) {
                 $start = Carbon::parse($startsAt, $business->timezone);
-                $duration = $this->resolvePrice($service)->durationMinutes();
+                $duration = $this->resolvePrice($service, $request->service_price_id)->durationMinutes();
                 $end = $start->copy()->addMinutes($duration);
 
                 if (! $this->availability->isOpenAt($business, $start)) {
@@ -182,6 +186,7 @@ class BookingService
                 $business,
                 Carbon::parse($request->requested_date),
                 (int) $request->people_count,
+                $request->service_price_id,
             );
 
             $stillFree = $slots->first(fn (array $slot) => $slot['starts_at'] === $time->starts_at->format('H:i'));
@@ -189,7 +194,7 @@ class BookingService
                 throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'That time was just booked by someone else. Pick another slot.');
             }
 
-            $price = $this->resolvePrice($service);
+            $price = $this->resolvePrice($service, $request->service_price_id);
             $people = (int) $request->people_count;
 
             /** @var Booking $booking */
@@ -348,12 +353,13 @@ class BookingService
     // Pricing helper
     // -------------------------------------------------------------------------
 
-    public function resolvePrice(Service $service): ServicePrice
+    public function resolvePrice(Service $service, ?string $servicePriceId = null): ServicePrice
     {
         /** @var ServicePrice|null $price */
         $price = ServicePrice::query()
             ->where('service_id', $service->getKey())
             ->where('is_current', true)
+            ->when($servicePriceId !== null, fn (Builder $query) => $query->whereKey($servicePriceId))
             ->first();
 
         if ($price === null) {

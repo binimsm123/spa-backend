@@ -1,5 +1,51 @@
 <?php
 
+use App\Models\User;
+
+it('allows login with email or phone for each role', function (string $role, string $field): void {
+    $user = User::factory()->create(['mobile_verified_at' => now(), 'is_active' => true]);
+    $user->assignRole($role);
+
+    $this->postJson('/api/v1/auth/login', [
+        $field => $field === 'email' ? $user->email : $user->mobile,
+        'password' => 'password',
+    ])->assertOk()->assertJsonPath('data.user.id', $user->id)
+        ->assertJsonPath('data.user.roles', [$role])
+        ->assertJsonStructure(['data' => ['access_token', 'refresh_token', 'expires_in']]);
+})->with(['superadmin', 'customer'])->with(['email', 'mobile_number']);
+
+it('rejects invalid or ambiguous login identifiers with 422', function (array $identifiers, array $fields): void {
+    $this->postJson('/api/v1/auth/login', [...$identifiers, 'password' => 'password'])
+        ->assertUnprocessable()->assertJsonValidationErrors($fields);
+})->with([
+    'missing identifier' => [[], ['email', 'mobile_number']],
+    'malformed email' => [['email' => 'invalid'], ['email']],
+    'both identifiers' => [['email' => 'admin@example.test', 'mobile_number' => '+9779800000000'], ['email', 'mobile_number']],
+]);
+
+it('rejects incorrect email credentials with 401 without creating tokens', function (bool $exists): void {
+    if ($exists) {
+        User::factory()->create(['email' => 'admin@example.test', 'mobile_verified_at' => now()]);
+    }
+
+    $this->postJson('/api/v1/auth/login', ['email' => 'admin@example.test', 'password' => 'wrong-password'])
+        ->assertUnauthorized()->assertJsonPath('code', 'INVALID_CREDENTIALS')
+        ->assertJsonPath('message', 'Invalid email or password.');
+    $this->assertDatabaseCount('personal_access_tokens', 0);
+})->with([false, true]);
+
+it('retains account status and mobile verification checks during email login', function (bool $active, bool $verified, string $code): void {
+    $user = User::factory()->create(['is_active' => $active, 'mobile_verified_at' => $verified ? now() : null]);
+    $user->assignRole('superadmin');
+
+    $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => 'password'])
+        ->assertForbidden()->assertJsonPath('code', $code);
+    $this->assertDatabaseCount('personal_access_tokens', 0);
+})->with([
+    'disabled' => [false, true, 'ACCOUNT_DISABLED'],
+    'unverified mobile' => [true, false, 'MOBILE_NOT_VERIFIED'],
+]);
+
 it('registers a customer and returns the success envelope', function (): void {
     $response = $this->postJson('/api/v1/auth/register', [
         'mobile_number' => '+9779811112222',

@@ -16,6 +16,7 @@ class BookingRequest extends Model
         'user_id',
         'business_id',
         'service_id',
+        'service_price_id',
         'people_count',
         'requested_date',
         'timezone',
@@ -58,6 +59,11 @@ class BookingRequest extends Model
     public function times(): HasMany
     {
         return $this->hasMany(BookingRequestTime::class);
+    }
+
+    public function servicePrice(): BelongsTo
+    {
+        return $this->belongsTo(ServicePrice::class);
     }
 
     public function booking(): HasOne

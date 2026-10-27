@@ -19,9 +19,11 @@ use App\Services\AvailabilityService;
 use App\Services\BookingService;
 use App\Services\IdempotencyService;
 use App\Support\ApiResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 class BookingController extends Controller
@@ -42,6 +44,8 @@ class BookingController extends Controller
         abort_unless($service->business_id === $business->getKey(), 404);
         $data = $request->validate([
             'business_id' => ['sometimes', 'ulid', 'in:'.$business->getKey()],
+            'service_price_id' => ['sometimes', 'ulid', Rule::exists('service_prices', 'id')
+                ->where('service_id', $service->getKey())->where('is_current', true)],
             'date' => ['required', 'date', 'after_or_equal:today'],
             'timezone' => ['nullable', 'timezone:all'],
             'days' => ['nullable', 'integer', 'between:1,14'],
@@ -54,8 +58,8 @@ class BookingController extends Controller
         $dates = collect(range(0, $days - 1))
             ->map(fn (int $i) => Carbon::parse($data['date'], $timezone)->startOfDay()->addDays($i));
 
-        $availability = $dates->map(function (Carbon $date) use ($service, $business, $people) {
-            $slots = $this->availability->slotsFor($service, $business, $date, $people);
+        $availability = $dates->map(function (Carbon $date) use ($service, $business, $people, $data) {
+            $slots = $this->availability->slotsFor($service, $business, $date, $people, $data['service_price_id'] ?? null);
 
             return [
                 'date' => $date->toDateString(),
@@ -66,6 +70,7 @@ class BookingController extends Controller
 
         $price = $service->prices()
             ->where('is_current', true)
+            ->when(isset($data['service_price_id']), fn (Builder $query) => $query->whereKey($data['service_price_id']))
             ->firstOrFail();
         $service->setAttribute('price', $price->price_minor);
         $service->setAttribute('currency', $price->currency);

@@ -10,6 +10,7 @@ use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Support\ApiException;
 use App\Support\ErrorCode;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -20,7 +21,7 @@ class AvailabilityService
      *
      * @return Collection<int, array{starts_at: string, ends_at: string}>
      */
-    public function slotsFor(Service $service, Business $business, Carbon $date, int $peopleCount = 1): Collection
+    public function slotsFor(Service $service, Business $business, Carbon $date, int $peopleCount = 1, ?string $servicePriceId = null): Collection
     {
         if (! $service->is_bookable || $service->status !== 'active') {
             throw ApiException::conflict(ErrorCode::ServiceNotBookable, 'This service cannot be booked online.');
@@ -52,6 +53,7 @@ class AvailabilityService
         $price = ServicePrice::query()
             ->where('service_id', $service->getKey())
             ->where('is_current', true)
+            ->when($servicePriceId !== null, fn (Builder $query) => $query->whereKey($servicePriceId))
             ->first();
 
         if ($price === null) {

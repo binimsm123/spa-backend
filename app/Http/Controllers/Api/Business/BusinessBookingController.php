@@ -32,7 +32,7 @@ class BusinessBookingController extends Controller
 
         $query = BookingRequest::query()
             ->where('business_id', $business->getKey())
-            ->with(['service.currentPrices', 'user', 'times'])
+            ->with(['service', 'servicePrice', 'user', 'times'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->orderByDesc('created_at');
 
@@ -54,7 +54,7 @@ class BusinessBookingController extends Controller
 
         $updated = app(BookingService::class)->proposeTimes($bookingRequest, $data['starts_at'], $request->user());
 
-        return $this->resource(BookingRequestResource::make($updated->load(['service.currentPrices', 'times'])), 'Times proposed.');
+        return $this->resource(BookingRequestResource::make($updated->load(['service', 'servicePrice', 'times'])), 'Times proposed.');
     }
 
     /**
@@ -69,7 +69,7 @@ class BusinessBookingController extends Controller
 
         $updated = app(BookingService::class)->declineRequest($bookingRequest, $data['reason'] ?? null);
 
-        return $this->resource(BookingRequestResource::make($updated->load('service.currentPrices')), 'Request declined.');
+        return $this->resource(BookingRequestResource::make($updated->load(['service', 'servicePrice'])), 'Request declined.');
     }
 
     /**

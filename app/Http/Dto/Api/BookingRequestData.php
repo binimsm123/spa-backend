@@ -18,6 +18,7 @@ final readonly class BookingRequestData
             'status' => $this->request->status->value,
             'provider_id' => $this->request->business_id,
             'service_id' => $this->request->service_id,
+            'service_price_id' => $this->request->service_price_id,
             'requested_date' => $this->request->requested_date?->toDateString(),
             'people_count' => $this->request->people_count,
             'timezone' => $this->request->timezone,

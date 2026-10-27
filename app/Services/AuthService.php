@@ -191,13 +191,15 @@ class AuthService
     // Login / refresh / logout
     // -------------------------------------------------------------------------
 
-    public function login(string $mobileNumber, string $password): array
+    public function login(string $identifier, string $password): array
     {
+        $field = filter_var($identifier, FILTER_VALIDATE_EMAIL) !== false ? 'email' : 'mobile';
+
         /** @var User|null $user */
-        $user = User::where('mobile', $mobileNumber)->first();
+        $user = User::where($field, $identifier)->first();
 
         if ($user === null || ! Hash::check($password, $user->password)) {
-            throw new ApiException(ErrorCode::InvalidCredentials, 'Invalid mobile number or password.');
+            throw new ApiException(ErrorCode::InvalidCredentials, $field === 'email' ? 'Invalid email or password.' : 'Invalid mobile number or password.');
         }
 
         if (! $user->is_active) {

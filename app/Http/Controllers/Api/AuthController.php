@@ -85,7 +85,7 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         $tokens = $this->auth->login(
-            $request->validated('mobile_number'),
+            $request->validated('mobile_number') ?? $request->validated('email'),
             $request->validated('password'),
         );
 
