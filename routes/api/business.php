@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Business\BusinessBookingController;
 use App\Http\Controllers\Api\Business\BusinessOfferController;
 use App\Http\Controllers\Api\Business\BusinessOnboardingController;
 use App\Http\Controllers\Api\Business\BusinessProfileController;
+use App\Http\Controllers\Api\Business\BusinessRosterController;
 use App\Http\Controllers\Api\Business\BusinessServiceController;
 use App\Http\Controllers\Api\Business\BusinessStaffController;
 use Illuminate\Support\Facades\Route;
@@ -23,9 +24,20 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
     Route::delete('{business}/closures/{closure}', [BusinessProfileController::class, 'removeClosure'])->whereUlid('business')->whereUlid('closure');
 
     // Services
+    Route::get('{business}/service-categories', [BusinessServiceController::class, 'categories'])->whereUlid('business');
     Route::get('{business}/services', [BusinessServiceController::class, 'index'])->whereUlid('business');
     Route::post('{business}/services', [BusinessServiceController::class, 'store'])->whereUlid('business');
+    Route::get('{business}/services/{service}', [BusinessServiceController::class, 'show'])->whereUlid('business')->whereUlid('service');
     Route::patch('{business}/services/{service}', [BusinessServiceController::class, 'update'])->whereUlid('business')->whereUlid('service');
+    Route::delete('{business}/services/{service}', [BusinessServiceController::class, 'destroy'])->whereUlid('business')->whereUlid('service');
+
+    // Roster records do not grant account access or business membership.
+    Route::get('{business}/staff-roster', [BusinessRosterController::class, 'index'])->whereUlid('business');
+    Route::post('{business}/staff-roster', [BusinessRosterController::class, 'store'])->whereUlid('business');
+    Route::get('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'show'])->whereUlid('business')->whereUlid('staff');
+    Route::patch('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'update'])->whereUlid('business')->whereUlid('staff');
+    Route::delete('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'destroy'])->whereUlid('business')->whereUlid('staff');
+    Route::get('{business}/staff-roster/{staff}/avatar', [BusinessRosterController::class, 'avatar'])->whereUlid('business')->whereUlid('staff')->name('business.staff-roster.avatar');
 
     // Staff
     Route::get('{business}/staff', [BusinessStaffController::class, 'index'])->whereUlid('business');
