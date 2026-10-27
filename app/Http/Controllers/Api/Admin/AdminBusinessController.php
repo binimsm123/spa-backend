@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BusinessStateRequest;
 use App\Http\Resources\BusinessResource;
 use App\Models\Business;
+use App\Models\BusinessOnboarding;
+use App\Services\BusinessOnboardingService;
 use App\Support\ApiResponse;
 use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -52,6 +54,14 @@ class AdminBusinessController extends Controller
 
         $data = BusinessResource::make($business)->resolve();
         $data['kyc'] = $business->kycSummary('admin.businesses.documents.show');
+        $application = BusinessOnboarding::where('business_id', $business->id)->first();
+        if ($application) {
+            $data['onboarding'] = $application->summary();
+            foreach ($data['onboarding']['documents'] as &$document) {
+                $document['view_url'] = route('admin.businesses.onboarding.document', ['business' => $business->id, 'document' => $document['kind']]);
+            }
+            unset($document);
+        }
         $data['members'] = $business->members->map(fn ($u) => [
             'id' => $u->id,
             'display_name' => $u->display_name,
@@ -66,6 +76,12 @@ class AdminBusinessController extends Controller
     public function changeState(BusinessStateRequest $request, Business $business): JsonResponse
     {
         $data = $request->validated();
+        if (in_array($data['action'], ['verify', 'reject'], true) && BusinessOnboarding::where('business_id', $business->id)->exists()) {
+            abort_unless($request->user()->can('admin.businesses.verify'), 403);
+            app(BusinessOnboardingService::class)->review($request->user(), $business, $data['action'], $data['reason'] ?? null);
+
+            return $this->resource(BusinessResource::make($business->refresh()), 'Business updated.');
+        }
         $before = $business->only(['status', 'is_verified', 'is_online']);
 
         match ($data['action']) {

@@ -16,13 +16,10 @@ use App\Http\Requests\Auth\PasswordVerifyRequest;
 use App\Http\Requests\Auth\RefreshRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\VerifyRegistrationRequest;
-use App\Models\RefreshToken;
 use App\Models\User;
 use App\Models\VerificationCode;
 use App\Services\AuthService;
-use App\Support\ApiException;
 use App\Support\ApiResponse;
-use App\Support\ErrorCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -137,22 +134,7 @@ class AuthController extends Controller
     {
         $data = $request->validated();
 
-        // The reset token is a short-lived refresh session owned by the user.
-        $session = RefreshToken::query()
-            ->with('user')
-            ->where('token_hash', hash('sha256', $data['reset_token']))
-            ->whereNull('revoked_at')
-            ->where('expires_at', '>', now())
-            ->first();
-
-        if ($session === null || $session->user === null) {
-            throw new ApiException(ErrorCode::InvalidResetToken, 'Password reset token is invalid or expired.');
-        }
-
-        $user = $session->user;
-
-        $this->auth->resetPassword($user, $data['password']);
-        $this->auth->revokeAllSessions($user);
+        $this->auth->resetPasswordWithToken($data['reset_token'], $data['password']);
 
         return $this->success(null, 'Password reset successfully.');
     }
@@ -165,7 +147,7 @@ class AuthController extends Controller
             $request->validated('password'),
         );
 
-        return $this->success(['changed_at' => now()->toIso8601String(), 'other_sessions_revoked' => true], 'Password changed successfully.');
+        return $this->success(['changed_at' => now()->toIso8601String(), 'other_sessions_revoked' => true, 'reauthentication_required' => true], 'Password changed successfully.');
     }
 
     public function logout(LogoutRequest $request): JsonResponse

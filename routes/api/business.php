@@ -2,12 +2,16 @@
 
 use App\Http\Controllers\Api\Business\BusinessBookingController;
 use App\Http\Controllers\Api\Business\BusinessOfferController;
+use App\Http\Controllers\Api\Business\BusinessOnboardingController;
 use App\Http\Controllers\Api\Business\BusinessProfileController;
 use App\Http\Controllers\Api\Business\BusinessServiceController;
 use App\Http\Controllers\Api\Business\BusinessStaffController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(function (): void {
+    Route::get('onboarding', [BusinessOnboardingController::class, 'show']);
+    Route::post('onboarding', [BusinessOnboardingController::class, 'submit'])->name('business.onboarding.submit');
+    Route::post('onboarding/resubmit', [BusinessOnboardingController::class, 'submit'])->name('business.onboarding.resubmit');
     Route::get('{business}/documents/{document}', [BusinessProfileController::class, 'document'])->whereUlid('business')->name('business.documents.show');
     Route::get('my', [BusinessProfileController::class, 'myBusinesses']);
     Route::get('{business}', [BusinessProfileController::class, 'show'])->whereUlid('business');
