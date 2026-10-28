@@ -39,9 +39,11 @@ class BusinessOnboarding extends Model
             'status' => $this->status,
             'revision' => $this->revision,
             'fields' => $this->form_data,
-            'documents' => collect($this->documents)->map(fn ($file, $kind) => [
-                'kind' => $kind, 'name' => $file['name'], 'size' => $file['size'], 'mime_type' => $file['mime_type'], 'received' => true,
-            ])->values()->all(),
+            'documents' => collect($this->documents)
+                ->filter(fn ($file) => is_array($file) && isset($file['name'], $file['size'], $file['mime_type']))
+                ->map(fn ($file, $kind) => [
+                    'kind' => $kind, 'name' => $file['name'], 'size' => $file['size'], 'mime_type' => $file['mime_type'], 'received' => true,
+                ])->values()->all(),
             'submitted_at' => $this->submitted_at?->toIso8601String(),
             'reviewed_at' => $this->reviewed_at?->toIso8601String(),
             'rejection_reason' => $this->rejection_reason,

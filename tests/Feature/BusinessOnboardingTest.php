@@ -5,6 +5,7 @@ use App\Models\BusinessOnboarding;
 use App\Models\User;
 use App\Services\BusinessOnboardingService;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 function onboardingPayload(array $changes = []): array
@@ -143,4 +144,92 @@ it('selects the earliest active owner business for legacy multiple-business acco
         $business->members()->attach($owner->id, ['role' => 'owner', 'is_active' => true]);
     }
     $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/onboarding')->assertJsonPath('data.business.id', $early->id)->assertJsonPath('data.application', null);
+});
+
+it('returns an empty onboarding snapshot for an authenticated account without business membership or roles', function (): void {
+    $this->actingAs(User::factory()->create(), 'sanctum')
+        ->getJson('/api/v1/business/onboarding')
+        ->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('data', ['business' => null, 'application' => null, 'user_roles' => []]);
+});
+
+it('returns an empty onboarding snapshot when there is no eligible owner business', function (string $case): void {
+    $owner = User::factory()->create();
+    $business = Business::create(['name' => 'Unavailable', 'slug' => 'unavailable']);
+    $business->members()->attach($owner->id, [
+        'role' => $case === 'staff' ? 'staff' : 'owner',
+        'is_active' => $case !== 'inactive',
+    ]);
+    if ($case === 'deleted') {
+        $business->delete();
+    }
+
+    $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/onboarding')
+        ->assertOk()
+        ->assertJsonPath('data.business', null)
+        ->assertJsonPath('data.application', null);
+})->with(['staff', 'inactive', 'deleted']);
+
+it('returns a legacy owner business without an application or phone number', function (bool $verified): void {
+    $owner = User::factory()->create();
+    $business = Business::create(['name' => 'Legacy', 'slug' => 'legacy', 'is_verified' => $verified]);
+    $business->members()->attach($owner->id, ['role' => 'owner', 'is_active' => true]);
+
+    $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/onboarding')
+        ->assertOk()
+        ->assertJsonPath('data.business.id', $business->id)
+        ->assertJsonPath('data.business.phone_number', null)
+        ->assertJsonPath('data.business.kyc_status', $verified ? 'verified' : 'submitted')
+        ->assertJsonPath('data.application', null);
+})->with([false, true]);
+
+it('returns an application with empty document and form data', function (?array $documents): void {
+    $owner = User::factory()->create();
+    $business = Business::create(['name' => 'Empty application', 'slug' => 'empty-application']);
+    $business->members()->attach($owner->id, ['role' => 'owner', 'is_active' => true]);
+    $application = BusinessOnboarding::create([
+        'business_id' => $business->id, 'owner_user_id' => $owner->id,
+        'form_data' => [], 'documents' => $documents ?? [], 'submitted_at' => now(),
+    ]);
+    if ($documents === null) {
+        // The JSON literal null can exist even in a non-nullable JSON column.
+        DB::table('business_onboardings')->where('id', $application->id)->update(['documents' => 'null']);
+    }
+
+    $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/onboarding')
+        ->assertOk()
+        ->assertJsonPath('data.application.fields', [])
+        ->assertJsonPath('data.application.documents', [])
+        ->assertJsonPath('data.application.reviewed_at', null)
+        ->assertJsonPath('data.application.rejection_reason', null);
+})->with([
+    'empty documents' => [[]],
+    'empty document entries' => [['personal_pan' => null, 'citizenship' => []]],
+    'null JSON documents' => [null],
+    'incomplete document metadata' => [['personal_pan' => ['name' => 'pan.png'], 'citizenship' => 'legacy-path.png']],
+]);
+
+it('keeps complete document metadata when other entries are empty', function (): void {
+    $owner = User::factory()->create();
+    $business = Business::create(['name' => 'Partial documents', 'slug' => 'partial-documents']);
+    $business->members()->attach($owner->id, ['role' => 'owner', 'is_active' => true]);
+    BusinessOnboarding::create([
+        'business_id' => $business->id, 'owner_user_id' => $owner->id, 'form_data' => [], 'submitted_at' => now(),
+        'documents' => [
+            'personal_pan' => null,
+            'citizenship' => ['path' => 'private/citizenship.png', 'name' => 'citizenship.png', 'size' => 100, 'mime_type' => 'image/png'],
+        ],
+    ]);
+
+    $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/onboarding')
+        ->assertOk()
+        ->assertJsonPath('data.application.documents', [[
+            'kind' => 'citizenship', 'name' => 'citizenship.png', 'size' => 100, 'mime_type' => 'image/png', 'received' => true,
+        ]]);
+});
+
+it('requires authentication when reading onboarding', function (): void {
+    $this->getJson('/api/v1/business/onboarding')->assertUnauthorized()
+        ->assertJsonPath('code', 'UNAUTHENTICATED');
 });
