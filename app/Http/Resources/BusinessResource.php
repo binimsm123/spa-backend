@@ -23,6 +23,7 @@ class BusinessResource extends JsonResource
             'home_service' => (bool) $this->home_service,
             'location_service' => (bool) $this->location_service,
             'staff_number' => (int) $this->staff_number,
+            'outlet_number' => (int) $this->outlet_number,
             'rating_average' => (float) $this->rating_average,
             'rating_count' => (int) $this->rating_count,
             'created_at' => $this->created_at?->toIso8601String(),

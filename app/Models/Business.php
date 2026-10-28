@@ -31,6 +31,7 @@ class Business extends Model
         'home_service',
         'location_service',
         'staff_number',
+        'outlet_number',
         'is_verified',
         'is_online',
         'status',
@@ -57,6 +58,7 @@ class Business extends Model
             'home_service' => 'boolean',
             'location_service' => 'boolean',
             'staff_number' => 'integer',
+            'outlet_number' => 'integer',
             'rating_average' => 'float',
         ];
     }

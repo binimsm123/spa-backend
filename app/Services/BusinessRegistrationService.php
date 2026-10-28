@@ -28,6 +28,7 @@ class BusinessRegistrationService
         $personalPaths = [];
         $heroImagePath = null;
         $dob = Arr::pull($data, 'dob');
+        $fullName = Arr::pull($data, 'full_name');
 
         try {
             if (isset($data['hero_image'])) {
@@ -69,7 +70,7 @@ class BusinessRegistrationService
             }
             unset($data['personal_kyc_document']);
 
-            return DB::transaction(function () use ($owner, $data, $businessId, $paths, $personalPaths, $dob): Business {
+            return DB::transaction(function () use ($owner, $data, $businessId, $paths, $personalPaths, $dob, $fullName): Business {
                 if (isset($data['locations']) && is_array($data['locations'])) {
                     $data = array_replace($data, $this->locations->serviceFlags($data['locations']));
                 }
@@ -94,6 +95,9 @@ class BusinessRegistrationService
                 $owner->assignRole(BusinessUserRole::Owner->value);
 
                 $ownerData = [];
+                if ($fullName !== null) {
+                    $ownerData['display_name'] = $fullName;
+                }
                 if ($personalPaths !== []) {
                     $ownerData['kyc_document'] = $personalPaths;
                 }

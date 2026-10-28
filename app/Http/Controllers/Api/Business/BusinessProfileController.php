@@ -30,6 +30,10 @@ class BusinessProfileController extends Controller
         $data = BusinessResource::make($business)->resolve();
         $data['kyc'] = $business->kycSummary();
         $data['personal_kyc'] = $request->user()->kycSummary();
+        $data['personal_details'] = [
+            'full_name' => $request->user()->display_name,
+            'dob' => $request->user()->dob?->format('Y-m-d'),
+        ];
         $data['my_role'] = BusinessUserRole::Owner->value;
         $data['user_roles'] = $request->user()->getRoleNames();
 

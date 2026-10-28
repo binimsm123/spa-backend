@@ -38,9 +38,14 @@ class BusinessOnboardingService
             'business' => $business ? [
                 'id' => $business->id, 'name' => $business->name, 'phone_number' => $business->phone_number,
                 'is_verified' => $business->is_verified, 'is_online' => $business->is_online, 'status' => $business->status,
+                'outlet_number' => (int) $business->outlet_number,
                 'kyc_status' => $application?->status ?? ($business->is_verified ? 'verified' : 'submitted'),
             ] : null,
             'application' => $application?->summary(),
+            'personal_details' => [
+                'full_name' => $user->display_name,
+                'dob' => $user->dob?->format('Y-m-d'),
+            ],
             'user_roles' => $user->getRoleNames()->values()->all(),
         ];
     }

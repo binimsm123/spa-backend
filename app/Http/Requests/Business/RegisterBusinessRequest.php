@@ -29,6 +29,7 @@ class RegisterBusinessRequest extends FormRequest
             'category_ids' => ['sometimes', 'array', Rule::exists('categories', 'id')],
             'category_ids.*' => ['required', 'ulid', 'distinct'],
             'name' => ['required', 'string', 'max:160'],
+            'full_name' => ['sometimes', 'required', 'string', 'max:100'],
             'dob' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'hero_image' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'phone_number' => ['required', 'string', 'max:32'],
@@ -48,6 +49,7 @@ class RegisterBusinessRequest extends FormRequest
             'home_service' => ['sometimes', 'boolean'],
             'location_service' => ['sometimes', 'boolean'],
             'staff_number' => ['sometimes', 'integer', 'min:0', 'max:2147483647'],
+            'outlet_number' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
             'is_insured' => ['sometimes', 'boolean'],
             'personal_kyc_document' => ['sometimes', 'nullable', 'array:'.implode(',', User::KYC_DOCUMENT_TYPES)],
         ];

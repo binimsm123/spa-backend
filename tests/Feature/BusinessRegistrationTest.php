@@ -278,14 +278,15 @@ it('registers multiple locations without redundant business and location queries
             ->assertJsonPath('data.home_service', true)->assertJsonPath('data.location_service', true)
             ->assertJsonPath('data.staff_number', 0)->assertJsonPath('data.timezone', 'Asia/Kathmandu')
             ->assertJsonPath('data.kyc.documents.0.type', 'vat_pan_document');
-        $queries = collect(DB::getQueryLog())->pluck('query');
+        $queries = collect(DB::getQueryLog())->pluck('query')
+            ->map(fn (string $sql): string => str_replace(['`', '"'], '', $sql));
     } finally {
         DB::disableQueryLog();
     }
 
-    expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'delete from `business_locations`')))->toHaveCount(0);
-    expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update `businesses`')))->toHaveCount(0);
-    expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from `business_locations`')))->toHaveCount(1);
+    expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'delete from business_locations')))->toHaveCount(0);
+    expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update businesses')))->toHaveCount(0);
+    expect($queries->filter(fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from business_locations')))->toHaveCount(1);
     $this->assertDatabaseHas('business_users', ['business_id' => $response->json('data.id'), 'user_id' => $owner->id, 'role' => 'owner']);
 });
 
@@ -489,3 +490,61 @@ it('rejects registration with only a legacy address and no locations', function 
     $this->assertDatabaseCount('business_locations', 0);
     expect(Storage::disk('local')->allFiles())->toBe([]);
 });
+
+it('stores personal name and outlet number and restores them for the registering owner', function (): void {
+    Storage::fake('local');
+    $owner = User::factory()->create(['display_name' => 'Previous Name']);
+    $otherUser = User::factory()->create(['display_name' => 'Other Customer']);
+    $credentials = $owner->only(['mobile', 'email', 'password']);
+
+    $response = $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload([
+        'full_name' => '  Anita Shrestha  ',
+        'dob' => '1990-02-01',
+        'outlet_number' => 3,
+        'user_id' => $otherUser->getKey(),
+    ]), ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('data.outlet_number', 3)
+        ->assertJsonPath('data.personal_details.full_name', 'Anita Shrestha')
+        ->assertJsonPath('data.personal_details.dob', '1990-02-01');
+
+    $this->assertDatabaseHas('businesses', ['id' => $response->json('data.id'), 'outlet_number' => 3]);
+    expect($owner->refresh()->display_name)->toBe('Anita Shrestha');
+    expect($owner->only(['mobile', 'email', 'password']))->toBe($credentials);
+    expect($otherUser->refresh()->display_name)->toBe('Other Customer');
+    $this->getJson('/api/v1/business/onboarding')->assertOk()
+        ->assertJsonPath('data.business.outlet_number', 3)
+        ->assertJsonPath('data.personal_details.full_name', 'Anita Shrestha')
+        ->assertJsonPath('data.personal_details.dob', '1990-02-01');
+    $this->getJson('/api/v1/business/'.$response->json('data.id'))->assertOk()->assertJsonPath('data.outlet_number', 3);
+});
+
+it('preserves the account name and outlet default for older registration clients', function (): void {
+    Storage::fake('local');
+    $owner = User::factory()->create(['display_name' => 'Existing Customer']);
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload(), ['Accept' => 'application/json'])
+        ->assertCreated()->assertJsonPath('data.outlet_number', 0);
+
+    expect($owner->refresh()->display_name)->toBe('Existing Customer');
+});
+
+it('rejects invalid personal names and outlet numbers before storing registration data', function (array $fields, string $invalidField): void {
+    Storage::fake('local');
+    $owner = User::factory()->create(['display_name' => 'Existing Customer']);
+
+    $this->actingAs($owner, 'sanctum')->post('/api/v1/business/register', businessRegistrationPayload($fields), ['Accept' => 'application/json'])
+        ->assertUnprocessable()->assertJsonValidationErrors([$invalidField]);
+
+    expect($owner->refresh()->display_name)->toBe('Existing Customer');
+    $this->assertDatabaseCount('businesses', 0);
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+})->with([
+    'empty name' => [['full_name' => ' '], 'full_name'],
+    'null name' => [['full_name' => null], 'full_name'],
+    'oversized name' => [['full_name' => str_repeat('a', 101)], 'full_name'],
+    'zero outlets' => [['outlet_number' => 0], 'outlet_number'],
+    'negative outlets' => [['outlet_number' => -1], 'outlet_number'],
+    'fractional outlets' => [['outlet_number' => 1.5], 'outlet_number'],
+    'range instead of exact outlets' => [['outlet_number' => '6+'], 'outlet_number'],
+    'outlets above database limit' => [['outlet_number' => 2147483648], 'outlet_number'],
+]);
