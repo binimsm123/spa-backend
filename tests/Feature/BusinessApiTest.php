@@ -703,14 +703,14 @@ it('returns current service prices with duration on create update list and detai
         'price_minor' => 600000,
         'currency' => 'NPR',
     ])->assertCreated()->assertJsonCount(1, 'data.service_prices')
-        ->assertJsonPath('data.service_prices.0.duration', '01:15:00')
+        ->assertJsonPath('data.service_prices.0.duration', '01:15')
         ->assertJsonPath('data.service_prices.0.price_minor', 600000);
     expect($created->json('data'))->not->toHaveKey('duration_minutes');
     $serviceId = $created->json('data.id');
 
     $updated = $this->patchJson("/api/v1/business/{$business->getKey()}/services/{$serviceId}", ['duration' => '01:30'])
         ->assertOk()->assertJsonCount(1, 'data.service_prices')
-        ->assertJsonPath('data.service_prices.0.duration', '01:30:00')
+        ->assertJsonPath('data.service_prices.0.duration', '01:30')
         ->assertJsonPath('data.service_prices.0.price_minor', 600000);
     expect($updated->json('data'))->not->toHaveKey('duration_minutes');
     $this->assertDatabaseHas('service_prices', ['service_id' => $serviceId, 'duration' => '01:30:00', 'is_current' => true]);
@@ -719,13 +719,13 @@ it('returns current service prices with duration on create update list and detai
     $list = $this->getJson("/api/v1/business/{$business->getKey()}/services")->assertOk();
     $listed = collect($list->json('data.items'))->firstWhere('id', $serviceId);
     expect($listed['service_prices'])->toHaveCount(1);
-    expect($listed['service_prices'][0]['duration'])->toBe('01:30:00');
+    expect($listed['service_prices'][0]['duration'])->toBe('01:30');
     expect($listed)->not->toHaveKey('duration_minutes');
 
     $detail = $this->getJson("/api/v1/businesses/{$business->getKey()}")->assertOk();
     $service = collect($detail->json('data.services'))->firstWhere('id', $serviceId);
     expect($service['service_prices'])->toHaveCount(1);
-    expect($service['service_prices'][0]['duration'])->toBe('01:30:00');
+    expect($service['service_prices'][0]['duration'])->toBe('01:30');
     expect($service)->not->toHaveKey('duration_minutes');
 });
 

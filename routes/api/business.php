@@ -32,16 +32,17 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
     Route::delete('{business}/services/{service}', [BusinessServiceController::class, 'destroy'])->whereUlid('business')->whereUlid('service');
 
     // Roster records do not grant account access or business membership.
-    Route::get('{business}/staff-roster', [BusinessRosterController::class, 'index'])->whereUlid('business');
-    Route::post('{business}/staff-roster', [BusinessRosterController::class, 'store'])->whereUlid('business');
-    Route::get('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'show'])->whereUlid('business')->whereUlid('staff');
-    Route::patch('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'update'])->whereUlid('business')->whereUlid('staff');
-    Route::delete('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'destroy'])->whereUlid('business')->whereUlid('staff');
-    Route::get('{business}/staff-roster/{staff}/avatar', [BusinessRosterController::class, 'avatar'])->whereUlid('business')->whereUlid('staff')->name('business.staff-roster.avatar');
+    // Route::get('{business}/staff-roster', [BusinessRosterController::class, 'index'])->whereUlid('business');
+    // Route::post('{business}/staff-roster', [BusinessRosterController::class, 'store'])->whereUlid('business');
+    // Route::get('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'show'])->whereUlid('business')->whereUlid('staff');
+    // Route::patch('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'update'])->whereUlid('business')->whereUlid('staff');
+    // Route::delete('{business}/staff-roster/{staff}', [BusinessRosterController::class, 'destroy'])->whereUlid('business')->whereUlid('staff');
+    // Route::get('{business}/staff-roster/{staff}/avatar', [BusinessRosterController::class, 'avatar'])->whereUlid('business')->whereUlid('staff')->name('business.staff-roster.avatar');
 
     // Staff
     Route::get('{business}/staff', [BusinessStaffController::class, 'index'])->whereUlid('business');
     Route::post('{business}/staff/invite', [BusinessStaffController::class, 'invite'])->whereUlid('business');
+    Route::patch('{business}/staff/{user}', [BusinessStaffController::class, 'update'])->whereUlid('business')->whereUlid('user');
     Route::post('{business}/staff/{user}/deactivate', [BusinessStaffController::class, 'deactivate'])->whereUlid('business')->whereUlid('user');
 
     // Booking requests + bookings

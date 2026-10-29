@@ -91,7 +91,7 @@ it('lists current duration and pricing under service prices in the home catalog'
         ->assertJsonCount(1, 'data.categories.0.businesses.0.services')
         ->assertJsonCount(2, 'data.categories.0.businesses.0.services.0.service_prices');
     $prices = collect($response->json('data.categories.0.businesses.0.services.0.service_prices'));
-    expect($prices->pluck('duration')->all())->toContain('01:00:00', '01:30:00')->not->toContain('00:45:00');
+    expect($prices->pluck('duration')->all())->toContain('01:00', '01:30')->not->toContain('00:45');
     expect($prices->pluck('price_minor')->all())->toContain(500000, 650000);
     expect($response->json('data.categories.0.businesses.0.services.0'))->not->toHaveKey('duration_minutes');
 });

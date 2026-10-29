@@ -29,7 +29,7 @@ function managementServicePayload(): array
 
     return [
         'management_version' => 1, 'name' => 'Deep tissue', 'description' => 'A relaxing treatment.', 'category_id' => $category->id,
-        'prices' => [['duration_minutes' => 45, 'price_minor' => 125000, 'currency' => 'NPR'], ['duration_minutes' => 90, 'price_minor' => 200000, 'currency' => 'NPR']],
+        'prices' => [['duration' => '00:45', 'price_minor' => 125000, 'currency' => 'NPR'], ['duration' => '01:30', 'price_minor' => 200000, 'currency' => 'NPR']],
         'images' => [UploadedFile::fake()->image('service.png')],
     ];
 }
@@ -50,13 +50,59 @@ it('creates multiple prices and photos, replays retries, and rejects changed req
     $url = "/api/v1/business/{$business->id}/services";
     $first = $this->withHeader('Idempotency-Key', 'service-create')->postJson($url, $payload)->assertCreated();
     $id = $first->json('data.id');
-    $first->assertJsonPath('data.service_prices.0.duration_minutes', 45)->assertJsonCount(1, 'data.photos');
+    $first->assertJsonPath('data.service_prices.0.duration', '00:45')->assertJsonCount(1, 'data.photos');
     $this->postJson($url, $payload)->assertCreated()->assertJsonPath('data.id', $id);
     $this->postJson($url, [...$payload, 'name' => 'Changed'])->assertConflict();
     $this->postJson($url, [...$payload, 'images' => [UploadedFile::fake()->image('changed.png', 15, 15)]])->assertConflict();
     expect(Service::where('business_id', $business->id)->count())->toBe(2)
         ->and(ServicePrice::where('service_id', $id)->count())->toBe(2)
         ->and(Storage::disk('public')->allFiles())->toHaveCount(1);
+});
+
+it('adds edits lists and deletes services with many images and H:i price durations', function (): void {
+    [, $business] = managementOwner();
+    $payload = managementServicePayload();
+    $payload['prices'] = array_reverse($payload['prices']);
+    $payload['images'] = array_map(fn ($i) => UploadedFile::fake()->image("photo$i.jpg"), range(1, 4));
+    $url = "/api/v1/business/{$business->id}/services";
+
+    $created = $this->withHeader('Idempotency-Key', 'many-create')->post($url, $payload, ['Accept' => 'application/json'])
+        ->assertCreated()->assertJsonCount(4, 'data.photos')
+        ->assertJsonPath('data.service_prices.0.duration', '00:45')
+        ->assertJsonPath('data.service_prices.1.duration', '01:30');
+    $id = $created->json('data.id');
+    $photos = ServicePhoto::where('service_id', $id)->orderBy('position')->get();
+    $this->assertDatabaseHas('service_prices', ['service_id' => $id, 'duration' => '00:45:00']);
+    $this->assertDatabaseHas('service_prices', ['service_id' => $id, 'duration' => '01:30:00']);
+    $this->getJson($url.'?search=Deep%20tissue')->assertOk()->assertJsonCount(4, 'data.items.0.photos');
+    $this->getJson($url.'?search=Deep%20tissue&page=1')->assertOk()->assertJsonCount(4, 'data.items.0.photos');
+    $this->getJson("$url/$id")->assertOk()->assertJsonCount(4, 'data.photos');
+
+    $retainedIds = $photos->slice(1)->pluck('id')->all();
+    $updated = $this->withHeader('Idempotency-Key', 'many-edit')->post("$url/$id", [
+        '_method' => 'PATCH', 'management_version' => 1,
+        'retained_photo_ids' => $retainedIds,
+        'images' => [UploadedFile::fake()->image('extra1.jpg'), UploadedFile::fake()->image('extra2.jpg')],
+    ], ['Accept' => 'application/json'])->assertOk()->assertJsonCount(5, 'data.photos');
+    $updated->assertJsonPath('data.photos.0.id', $retainedIds[0]);
+    Storage::disk('public')->assertMissing($photos->first()->path);
+    foreach ($photos->slice(1) as $photo) {
+        Storage::disk('public')->assertExists($photo->path);
+    }
+    expect(Storage::disk('public')->allFiles())->toHaveCount(5);
+
+    $this->withHeader('Idempotency-Key', 'many-empty')->patchJson("$url/$id", [
+        'management_version' => 1, 'retained_photo_ids' => [],
+    ])->assertUnprocessable()->assertJsonValidationErrors('images');
+    expect(ServicePhoto::where('service_id', $id)->count())->toBe(5);
+
+    $this->withHeader('Idempotency-Key', 'many-delete')->deleteJson("$url/$id")->assertOk();
+    $this->assertSoftDeleted('services', ['id' => $id]);
+    $this->assertDatabaseMissing('service_photos', ['service_id' => $id]);
+    expect(Storage::disk('public')->allFiles())->toBe([])
+        ->and(ServicePrice::where('service_id', $id)->count())->toBe(2);
+    $this->getJson("$url/$id")->assertNotFound();
+    $this->getJson($url.'?search=Deep%20tissue')->assertOk()->assertJsonCount(0, 'data.items');
 });
 
 it('validates every required modern service field', function (string $field): void {
@@ -73,8 +119,12 @@ it('rejects invalid service prices and files', function (string $field, mixed $v
     $this->withHeader('Idempotency-Key', 'invalid')->postJson("/api/v1/business/{$business->id}/services", $payload)->assertUnprocessable();
     expect(Storage::disk('public')->allFiles())->toBe([]);
 })->with([
-    'zero duration' => ['prices.0.duration_minutes', 0],
-    'duplicate duration' => ['prices.1.duration_minutes', 45],
+    'zero duration' => ['prices.0.duration', '00:00'],
+    'duplicate duration' => ['prices.1.duration', '00:45'],
+    'numeric duration' => ['prices.0.duration', 45],
+    'seconds in duration' => ['prices.0.duration', '00:45:00'],
+    'invalid minutes' => ['prices.0.duration', '01:60'],
+    'invalid hours' => ['prices.0.duration', '24:00'],
     'fractional price' => ['prices.0.price_minor', 1.5],
     'zero price' => ['prices.0.price_minor', 0],
     'wrong currency' => ['prices.0.currency', 'USD'],
@@ -82,7 +132,7 @@ it('rejects invalid service prices and files', function (string $field, mixed $v
     'oversize image' => ['images', fn () => [UploadedFile::fake()->image('large.png')->size(5121)]],
     'unsupported image' => ['images', fn () => [UploadedFile::fake()->create('image.svg', 2, 'image/svg+xml')]],
     'empty image' => ['images', fn () => [UploadedFile::fake()->create('empty.png', 0, 'image/png')]],
-    'too many images' => ['images', fn () => array_map(fn ($i) => UploadedFile::fake()->image("image$i.png"), range(1, 3))],
+    'no images' => ['images', []],
 ]);
 
 it('keeps unchanged price IDs and photos and preserves replaced price history', function (): void {

@@ -13,7 +13,7 @@ class ServicePriceResource extends JsonResource
             'id' => $this->id,
             'price_minor' => (int) $this->price_minor,
             'currency' => $this->currency,
-            'duration' => $this->duration,
+            'duration' => substr((string) $this->duration, 0, 5),
             'duration_minutes' => $this->resource->durationMinutes(),
             'is_current' => (bool) $this->is_current,
         ];

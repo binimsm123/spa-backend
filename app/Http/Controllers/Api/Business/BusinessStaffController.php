@@ -6,6 +6,7 @@ use App\Enums\BusinessUserRole;
 use App\Enums\NotificationType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Business\InviteStaffRequest;
+use App\Http\Requests\Business\UpdateStaffRequest;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\User;
@@ -118,8 +119,77 @@ class BusinessStaffController extends Controller
             'job_title' => $staff->job_title,
             'image' => $staff->image ? url('storage/'.$staff->image) : null,
             'role' => $data['role'],
-            'mobile_number' => $staff->mobile
+            'mobile_number' => $staff->mobile,
         ], 'Staff member added.', 201);
+    }
+
+    public function update(UpdateStaffRequest $request, Business $business, User $user): JsonResponse
+    {
+        $this->assertMember($request, $business, ['owner', 'manager']);
+
+        $data = $request->validated();
+        $imagePath = null;
+
+        try {
+            [$staff, $membership, $oldImage] = DB::transaction(function () use ($data, $business, $user, &$imagePath): array {
+                $staff = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+                $membership = BusinessUser::query()
+                    ->where('business_id', $business->getKey())
+                    ->where('user_id', $staff->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $oldImage = $staff->image;
+
+                if (isset($data['name'])) {
+                    $staff->display_name = $data['name'];
+                }
+
+                if (array_key_exists('job_title', $data)) {
+                    $staff->job_title = $data['job_title'];
+                }
+
+                if (array_key_exists('image', $data)) {
+                    if ($data['image'] !== null) {
+                        $imagePath = $data['image']->store('avatars', 'public');
+
+                        if ($imagePath === false) {
+                            throw new RuntimeException('Unable to store the uploaded image. Please retry.');
+                        }
+                    }
+
+                    $staff->image = $imagePath;
+                }
+
+                $staff->save();
+
+                if (isset($data['role'])) {
+                    $membership->role = $data['role'];
+                    $membership->save();
+                }
+
+                return [$staff, $membership, $oldImage];
+            });
+        } catch (Throwable $exception) {
+            if (is_string($imagePath)) {
+                Storage::disk('public')->delete($imagePath);
+            }
+
+            throw $exception;
+        }
+
+        if ($oldImage && $oldImage !== $staff->image) {
+            Storage::disk('public')->delete($oldImage);
+        }
+
+        return $this->success([
+            'id' => $staff->getKey(),
+            'display_name' => $staff->display_name,
+            'job_title' => $staff->job_title,
+            'image' => $staff->image ? url('storage/'.$staff->image) : null,
+            'role' => $membership->role,
+            'mobile_number' => $staff->mobile,
+            'is_active' => (bool) $membership->is_active,
+        ], 'Staff member updated.');
     }
 
     public function deactivate(Request $request, Business $business, User $user): JsonResponse

@@ -26,9 +26,10 @@ class BusinessManagement
 
     public function authorize(Request $request, Business $business, bool $write = false): void
     {
-        abort_unless($request->user()->belongsToBusiness($business), 403, 'You do not manage this business.');
+        $membership = $request->user()->membershipFor($business);
+        abort_unless($membership !== null, 403, 'You do not manage this business.');
         if ($write) {
-            abort_unless($request->user()->hasBusinessRole($business, BusinessUserRole::Owner, BusinessUserRole::Manager), 403, 'Your role cannot manage services or staff.');
+            abort_unless(in_array($membership->role, [BusinessUserRole::Owner->value, BusinessUserRole::Manager->value], true), 403, 'Your role cannot manage services or staff.');
             if (! $business->is_verified || $business->status !== BusinessStatus::Active->value) {
                 throw ApiException::conflict(ErrorCode::Conflict, 'An active business with verified KYC is required to make changes.');
             }

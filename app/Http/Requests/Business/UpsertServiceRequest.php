@@ -44,16 +44,16 @@ class UpsertServiceRequest extends FormRequest
             'currency' => [$modern ? 'prohibited' : 'sometimes', 'string', 'size:3'],
             'duration' => [$modern ? 'prohibited' : $required, 'date_format:H:i'],
             'prices' => [$modern ? $required : 'sometimes', 'array', 'min:1', 'max:100'],
-            'prices.*.duration_minutes' => ['required', 'integer', 'min:1', 'max:1439', 'distinct'],
+            'prices.*.duration' => ['required', 'date_format:H:i', 'not_in:00:00', 'distinct'],
             'prices.*.price_minor' => ['required', 'integer', 'min:1', 'max:9999999900'],
             'prices.*.currency' => ['required', Rule::in(['NPR'])],
-            'images' => [$modern && ! $isUpdate ? 'required' : 'sometimes', 'array', 'max:2'],
+            'images' => [$modern && ! $isUpdate ? 'required' : 'sometimes', 'array'],
             'images.*' => ['file', 'image', 'mimes:jpg,jpeg,png', 'max:5120', function ($attribute, $value, $fail): void {
                 if ($value instanceof UploadedFile && $value->getSize() <= 0) {
                     $fail('Choose a nonempty image.');
                 }
             }],
-            'retained_photo_ids' => ['sometimes', 'array', 'max:2'],
+            'retained_photo_ids' => ['sometimes', 'array'],
             'retained_photo_ids.*' => ['required', 'ulid', 'distinct'],
         ];
     }

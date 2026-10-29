@@ -205,12 +205,12 @@ it('includes current service prices in admin service lists and updates', functio
     [$business, $service] = createBusinessWithService();
 
     $this->getJson('/api/v1/admin/services?business_id='.$business->getKey())->assertOk()
-        ->assertJsonPath('data.items.0.service_prices.0.duration', '01:00:00')
+        ->assertJsonPath('data.items.0.service_prices.0.duration', '01:00')
         ->assertJsonPath('data.items.0.service_prices.0.price_minor', 500000)
         ->assertJsonMissingPath('data.items.0.duration_minutes');
 
     $this->patchJson('/api/v1/admin/services/'.$service->getKey(), ['is_bookable' => false])->assertOk()
-        ->assertJsonPath('data.service_prices.0.duration', '01:00:00')
+        ->assertJsonPath('data.service_prices.0.duration', '01:00')
         ->assertJsonMissingPath('data.duration_minutes');
     $this->assertDatabaseHas('services', ['id' => $service->getKey(), 'is_bookable' => false]);
 });

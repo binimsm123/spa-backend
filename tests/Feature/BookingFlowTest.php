@@ -299,7 +299,7 @@ it('uses business hours and timezone for availability without a location paramet
     $this->getJson($url)->assertOk()->assertJsonPath('data.timezone', 'UTC')
         ->assertJsonPath('data.dates.0.slots.0.starts_at', '09:00')
         ->assertJsonPath('data.dates.0.slots.0.ends_at', '10:00')
-        ->assertJsonPath('data.service.service_prices.0.duration', '01:00:00')
+        ->assertJsonPath('data.service.service_prices.0.duration', '01:00')
         ->assertJsonMissingPath('data.service.duration_minutes');
 
     $business->closures()->create(['starts_on' => $date, 'ends_on' => $date]);
