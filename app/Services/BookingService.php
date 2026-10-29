@@ -92,13 +92,15 @@ class BookingService
     }
 
     /**
-     * Step 2: business proposes available times for the request.
+     * Step 2: business proposes HH:mm times on the requested date in the request timezone.
      *
      * @param  array<int, string>  $startsAtList
      */
     public function proposeTimes(BookingRequest $request, array $startsAtList, User $actor): BookingRequest
     {
         return DB::transaction(function () use ($request, $startsAtList): BookingRequest {
+            $request = BookingRequest::whereKey($request->getKey())->lockForUpdate()->firstOrFail();
+
             if ($request->status !== BookingRequestStatus::Pending) {
                 throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'Times can only be proposed for pending requests.');
             }
@@ -113,7 +115,7 @@ class BookingService
 
             $rows = [];
             foreach ($startsAtList as $startsAt) {
-                $start = Carbon::parse($startsAt, $business->timezone);
+                $start = Carbon::createFromFormat('!Y-m-d H:i', $request->requested_date->toDateString().' '.$startsAt, $request->timezone);
                 $duration = $this->resolvePrice($service, $request->service_price_id)->durationMinutes();
                 $end = $start->copy()->addMinutes($duration);
 
@@ -129,6 +131,12 @@ class BookingService
                     'ends_at' => $end,
                     'is_available' => true,
                 ];
+            }
+
+            if ($request->times()->whereIn('starts_at', array_column($rows, 'starts_at'))->exists()) {
+                throw ApiException::validation('One or more proposed times already exist for this booking request.', [
+                    'starts_at' => ['Choose times that have not already been proposed.'],
+                ]);
             }
 
             $request->times()->createMany($rows);

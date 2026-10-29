@@ -5,6 +5,7 @@ use App\Models\Offer;
 use App\Models\ServicePrice;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
+use App\Support\ApiException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
@@ -64,7 +65,7 @@ it('returns no unrelated prices for a legacy request without a selected price', 
         ->assertJsonCount(0, 'data.items.0.service.service_prices');
 });
 
-it('returns only the selected price when proposing or declining a booking request', function (string $action): void {
+it('returns only the selected price when declining a booking request', function (): void {
     [$owner, $business] = createBusinessOwner();
     $service = $business->services()->firstOrFail();
     $price = $service->prices()->create(['price_minor' => 750000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
@@ -73,11 +74,150 @@ it('returns only the selected price when proposing or declining a booking reques
         'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id, 'requested_date' => $date,
     ]);
 
-    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/'.$action, [
-        'starts_at' => [$date.'T10:00:00'],
+    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/decline', [
+        'starts_at' => ['10:00'],
     ])->assertOk()->assertJsonCount(1, 'data.service.service_prices')
         ->assertJsonPath('data.service.service_prices.0.id', $price->id);
-})->with(['propose', 'decline']);
+});
+
+it('proposes time-only options on the requested date with the selected service duration', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 28)->setTime(12, 0, 37));
+    [$owner, $business] = createBusinessOwner();
+    $business->update(['timezone' => 'Asia/Kathmandu']);
+    $service = $business->services()->firstOrFail();
+    $price = $service->prices()->create(['price_minor' => 750000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
+    $bookingRequest = app(BookingService::class)->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id,
+        'requested_date' => '2026-10-30',
+    ]);
+
+    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
+        'starts_at' => ['10:00', '14:00'],
+    ])->assertOk()->assertExactJson([
+        'success' => true,
+        'message' => 'Times proposed.',
+        'data' => ['10:00', '14:00'],
+    ]);
+
+    foreach (['10:00:00' => '11:30:00', '14:00:00' => '15:30:00'] as $start => $end) {
+        $this->assertDatabaseHas('booking_request_times', [
+            'booking_request_id' => $bookingRequest->id,
+            'starts_at' => '2026-10-30 '.$start, 'ends_at' => '2026-10-30 '.$end, 'is_available' => true,
+        ]);
+    }
+    expect($bookingRequest->refresh()->status->value)->toBe('times_proposed');
+    $this->assertDatabaseHas('notifications', ['user_id' => $owner->id, 'title' => 'Times available']);
+});
+
+it('uses the request timezone when calculating proposed time durations across daylight saving', function (): void {
+    $this->travelTo(now()->setDate(2027, 3, 13)->setTime(12, 0));
+    [$owner, $business] = createBusinessOwner();
+    $business->hours()->update(['opens_at' => '00:00']);
+    $service = $business->services()->firstOrFail();
+    $price = $service->prices()->create(['price_minor' => 750000, 'currency' => 'NPR', 'duration' => '01:30', 'is_current' => true]);
+    $bookingRequest = app(BookingService::class)->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id,
+        'requested_date' => '2027-03-14', 'timezone' => 'America/New_York',
+    ]);
+
+    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
+        'starts_at' => ['01:30'],
+    ])->assertOk()->assertExactJson([
+        'success' => true,
+        'message' => 'Times proposed.',
+        'data' => ['01:30'],
+    ]);
+
+    $this->assertDatabaseHas('booking_request_times', [
+        'booking_request_id' => $bookingRequest->id,
+        'starts_at' => '2027-03-14 01:30:00', 'ends_at' => '2027-03-14 04:00:00',
+    ]);
+});
+
+it('rejects invalid proposed times without updating the request or notifying the customer', function (array $payload, string $field): void {
+    $this->freezeTime();
+    [$owner, $business] = createBusinessOwner();
+    $service = $business->services()->firstOrFail();
+    $bookingRequest = app(BookingService::class)->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id,
+        'requested_date' => now()->addDay()->toDateString(),
+    ]);
+
+    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', $payload)
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+
+    expect($bookingRequest->refresh()->status->value)->toBe('pending');
+    $this->assertDatabaseCount('booking_request_times', 0);
+    $this->assertDatabaseMissing('notifications', ['user_id' => $owner->id, 'title' => 'Times available']);
+})->with([
+    'missing times' => [[], 'starts_at'],
+    'empty times' => [['starts_at' => []], 'starts_at'],
+    'full datetime' => [['starts_at' => ['2026-10-31T10:00:00+05:45']], 'starts_at.0'],
+    'seconds' => [['starts_at' => ['10:00:00']], 'starts_at.0'],
+    'invalid hour' => [['starts_at' => ['24:00']], 'starts_at.0'],
+    'invalid minute' => [['starts_at' => ['10:60']], 'starts_at.0'],
+    'missing leading zero' => [['starts_at' => ['9:00']], 'starts_at.0'],
+    'outside opening hours' => [['starts_at' => ['10:00', '18:00']], 'starts_at'],
+]);
+
+it('rejects duplicate proposed times with a validation message and no inserts', function (): void {
+    $this->freezeTime();
+    [$owner, $business] = createBusinessOwner();
+    $service = $business->services()->firstOrFail();
+    $bookingRequest = app(BookingService::class)->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id,
+        'requested_date' => now()->addDay()->toDateString(),
+    ]);
+
+    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
+        'starts_at' => ['10:00', '10:00'],
+    ])->assertUnprocessable()->assertJsonPath('code', 'VALIDATION_ERROR')
+        ->assertJsonValidationErrors(['starts_at.0' => 'Each proposed time must be unique.']);
+
+    $this->assertDatabaseCount('booking_request_times', 0);
+    expect($bookingRequest->refresh()->status->value)->toBe('pending');
+    $this->assertDatabaseMissing('notifications', ['user_id' => $owner->id, 'title' => 'Times available']);
+});
+
+it('rejects an already saved proposed time without inserting other times', function (): void {
+    $this->freezeTime();
+    [$owner, $business] = createBusinessOwner();
+    $service = $business->services()->firstOrFail();
+    $date = now()->addDay()->toDateString();
+    $bookingRequest = app(BookingService::class)->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id, 'requested_date' => $date,
+    ]);
+    $bookingRequest->times()->create([
+        'starts_at' => $date.' 10:00:00', 'ends_at' => $date.' 11:00:00', 'is_available' => true,
+    ]);
+
+    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
+        'starts_at' => ['14:00', '10:00'],
+    ])->assertUnprocessable()->assertJsonPath('message', 'One or more proposed times already exist for this booking request.')
+        ->assertJsonValidationErrors('starts_at');
+
+    $this->assertDatabaseCount('booking_request_times', 1);
+    expect($bookingRequest->refresh()->status->value)->toBe('pending');
+    $this->assertDatabaseMissing('notifications', ['user_id' => $owner->id, 'title' => 'Times available']);
+});
+
+it('rejects a stale proposal after another submission has proposed times', function (): void {
+    $this->freezeTime();
+    [$owner, $business] = createBusinessOwner();
+    $service = $business->services()->firstOrFail();
+    $bookings = app(BookingService::class);
+    $bookingRequest = $bookings->createRequest($owner, [
+        'business_id' => $business->id, 'service_id' => $service->id,
+        'requested_date' => now()->addDay()->toDateString(),
+    ]);
+    $bookings->proposeTimes($bookingRequest, ['10:00'], $owner);
+
+    expect(fn () => $bookings->proposeTimes($bookingRequest, ['10:00'], $owner))
+        ->toThrow(ApiException::class, 'Times can only be proposed for pending requests.');
+
+    $this->assertDatabaseCount('booking_request_times', 1);
+    expect($owner->notifications()->where('title', 'Times available')->count())->toBe(1);
+});
 
 it('lists only businesses the user manages', function (): void {
     [$owner, $business] = createBusinessOwner();

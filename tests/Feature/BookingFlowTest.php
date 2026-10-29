@@ -43,7 +43,7 @@ it('retains the selected service price and duration through availability proposa
     expect($request->servicePrice->id)->toBe($price->id);
     $this->getJson('/api/v1/bookings/requests/'.$request->id)->assertOk()->assertJsonPath('data.service_price_id', $price->id);
 
-    app(BookingService::class)->proposeTimes($request, [$date.'T10:00:00'], $user);
+    app(BookingService::class)->proposeTimes($request, ['10:00'], $user);
     $time = $request->refresh()->times()->firstOrFail();
     expect($time->ends_at->format('H:i'))->toBe('11:30');
     $booking = app(BookingService::class)->confirmRequest($user, $request, $time->id);
@@ -83,7 +83,7 @@ it('checks slot conflicts using the selected service price duration', function (
     $request = $bookings->createRequest($user, [
         'business_id' => $business->id, 'service_id' => $service->id, 'service_price_id' => $price->id, 'requested_date' => $date,
     ]);
-    $bookings->proposeTimes($request, [$date.'T10:00:00'], $user);
+    $bookings->proposeTimes($request, ['10:00'], $user);
     Booking::query()->create([
         'user_id' => $user->id, 'business_id' => $business->id, 'appointment_date' => $date,
         'starts_at' => $date.' 11:00:00', 'ends_at' => $date.' 12:00:00', 'status' => 'confirmed',
@@ -130,10 +130,8 @@ it('runs the full request -> propose -> confirm -> booking flow', function (): v
         'requested_date' => now()->addDay()->toDateString(),
     ]);
 
-    // Business proposes 10:00 tomorrow (UTC hours 09:00-17:00).
-    $start = now()->addDay()->setTimeFromTimeString('10:00')->format('Y-m-d\TH:i:s');
-
-    app(BookingService::class)->proposeTimes($bookingRequest, [$start], $user);
+    // Business proposes 10:00 on the requested date (UTC hours 09:00-17:00).
+    app(BookingService::class)->proposeTimes($bookingRequest, ['10:00'], $user);
 
     $timeId = $bookingRequest->refresh()->times->first()->getKey();
 
@@ -155,7 +153,6 @@ it('detects slot conflicts between two bookings at the same business', function 
     [$business, $service] = createBusinessWithService();
 
     $serviceObj = app(BookingService::class);
-    $tomorrow10 = now()->addDay()->setTimeFromTimeString('10:00')->format('Y-m-d\TH:i:s');
 
     // First customer books 10:00.
     $reqA = $serviceObj->createRequest($userA, [
@@ -163,7 +160,7 @@ it('detects slot conflicts between two bookings at the same business', function 
         'business_id' => $business->getKey(),
         'requested_date' => now()->addDay()->toDateString(),
     ]);
-    $serviceObj->proposeTimes($reqA, [$tomorrow10], $userA);
+    $serviceObj->proposeTimes($reqA, ['10:00'], $userA);
     $bookingA = $serviceObj->confirmRequest($userA, $reqA->refresh(), $reqA->times->first()->getKey());
 
     expect($bookingA->status->value)->toBe('awaiting_payment');

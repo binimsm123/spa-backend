@@ -49,12 +49,14 @@ class BusinessBookingController extends Controller
 
         $data = $request->validate([
             'starts_at' => ['required', 'array', 'min:1'],
-            'starts_at.*' => ['required', 'date'],
+            'starts_at.*' => ['required', 'date_format:H:i', 'distinct'],
+        ], [
+            'starts_at.*.distinct' => 'Each proposed time must be unique.',
         ]);
 
         $updated = app(BookingService::class)->proposeTimes($bookingRequest, $data['starts_at'], $request->user());
 
-        return $this->resource(BookingRequestResource::make($updated->load(['service', 'servicePrice', 'times'])), 'Times proposed.');
+        return $this->success($updated->times->map(fn ($time) => $time->starts_at->format('H:i'))->values()->all(), 'Times proposed.');
     }
 
     /**
