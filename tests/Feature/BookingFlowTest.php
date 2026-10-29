@@ -9,6 +9,63 @@ use App\Services\BookingService;
 use App\Support\ApiException;
 use Illuminate\Support\Str;
 
+it('returns a clear 409 instead of creating a duplicate booking even when the request status is inconsistent', function (string $status): void {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    [$business, $service] = createBusinessWithService();
+    $bookings = app(BookingService::class);
+    $bookingRequest = $bookings->createRequest($user, [
+        'business_id' => $business->getKey(),
+        'service_id' => $service->getKey(),
+        'requested_date' => now()->addDay()->toDateString(),
+    ]);
+    $bookings->proposeTimes($bookingRequest, ['10:00', '14:00'], $user);
+    $firstTime = $bookingRequest->times()->whereTime('starts_at', '10:00')->firstOrFail();
+    $otherTime = $bookingRequest->times()->whereTime('starts_at', '14:00')->firstOrFail();
+    $booking = $bookings->confirmRequest($user, $bookingRequest, $firstTime->getKey());
+    $bookingRequest->refresh()->update(['status' => $status]);
+    $notificationCount = $user->notifications()->count();
+
+    $this->actingAs($user, 'sanctum')
+        ->postJson('/api/v1/bookings/requests/'.$bookingRequest->getKey().'/confirm', [
+            'time_id' => $otherTime->getKey(),
+        ])->assertConflict()->assertExactJson([
+            'success' => false,
+            'message' => 'This request already has a booking. Please view your existing booking.',
+            'code' => 'BOOKING_REQUEST_ALREADY_BOOKED',
+        ]);
+
+    $this->assertDatabaseCount('bookings', 1);
+    $this->assertDatabaseCount('booking_items', 1);
+    $this->assertDatabaseCount('booking_status_history', 1);
+    $this->assertDatabaseHas('bookings', [
+        'id' => $booking->getKey(),
+        'starts_at' => now()->addDay()->format('Y-m-d').' 10:00:00',
+    ]);
+    expect($user->notifications()->count())->toBe($notificationCount);
+})->with(['confirmed', 'times_proposed']);
+
+it('reloads the request before confirming a stale instance', function (): void {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    [$business, $service] = createBusinessWithService();
+    $bookings = app(BookingService::class);
+    $bookingRequest = $bookings->createRequest($user, [
+        'business_id' => $business->getKey(),
+        'service_id' => $service->getKey(),
+        'requested_date' => now()->addDay()->toDateString(),
+    ]);
+    $bookings->proposeTimes($bookingRequest, ['10:00'], $user);
+    $bookingRequest->refresh();
+    $timeId = $bookingRequest->times()->firstOrFail()->getKey();
+    $bookingRequest->fresh()->update(['status' => 'declined']);
+
+    expect(fn () => $bookings->confirmRequest($user, $bookingRequest, $timeId))
+        ->toThrow(ApiException::class, 'Confirm the request only after times are proposed and available.');
+
+    $this->assertDatabaseCount('bookings', 0);
+});
+
 it('returns available slots for a service and blocks past dates', function (): void {
     [$user] = actingAsCustomer();
     [$business, $service] = createBusinessWithService();

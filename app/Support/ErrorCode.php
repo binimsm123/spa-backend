@@ -39,6 +39,7 @@ enum ErrorCode: string
 
     // Booking
     case BookingRequestExpired = 'BOOKING_REQUEST_EXPIRED';
+    case BookingRequestAlreadyBooked = 'BOOKING_REQUEST_ALREADY_BOOKED';
     case BookingRequestNotAccepted = 'BOOKING_REQUEST_NOT_ACCEPTED';
     case BookingSlotConflict = 'BOOKING_SLOT_CONFLICT';
     case BookingStatusTransitionInvalid = 'BOOKING_STATUS_TRANSITION_INVALID';
@@ -70,7 +71,7 @@ enum ErrorCode: string
             self::AccountDisabled, self::StaffNotAssigned => 403,
             self::NotFound, self::ServiceUnavailable, self::VerificationNotFound => 404,
             self::Conflict, self::AccountExists, self::BookingSlotConflict, self::BookingRequestExpired,
-            self::BookingRequestNotAccepted, self::BookingStatusTransitionInvalid,
+            self::BookingRequestNotAccepted, self::BookingRequestAlreadyBooked, self::BookingStatusTransitionInvalid,
             self::BookingNotCompleted, self::CapacityExceeded, self::StaffDoubleBooked,
             self::OfferUnavailable, self::OfferAlreadyRedeemed, self::OfferInvalidCode,
             self::QuoteExpired, self::QuoteInvalid, self::PaymentFailed,

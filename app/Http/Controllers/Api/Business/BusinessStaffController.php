@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api\Business;
 
 use App\Enums\BusinessUserRole;
+use App\Enums\NotificationType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Business\InviteStaffRequest;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\User;
+use App\Services\NotificationService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +25,22 @@ class BusinessStaffController extends Controller
     {
         $this->assertMember($request, $business);
 
-        $members = $business->members()
+        $data = $request->validate([
+            'status' => ['sometimes', 'required', 'in:active,inactive'],
+            'role' => ['sometimes', 'required', 'in:owner,manager,staff'],
+        ]);
+
+        $query = $business->members();
+
+        if (isset($data['status'])) {
+            $query->wherePivot('is_active', $data['status'] === 'active');
+        }
+
+        if (isset($data['role'])) {
+            $query->wherePivot('role', $data['role']);
+        }
+
+        $members = $query
             ->withPivot('role', 'is_active')
             ->get()
             ->map(fn (User $u) => [
@@ -63,9 +80,9 @@ class BusinessStaffController extends Controller
             return $user;
         });
 
-        app(\App\Services\NotificationService::class)->notify(
+        app(NotificationService::class)->notify(
             $staff,
-            \App\Enums\NotificationType::StaffInvite,
+            NotificationType::StaffInvite,
             'You have been added to '.$business->name,
             'You were invited as '.$data['role'].'.',
             ['business_id' => $business->getKey()],
@@ -97,7 +114,7 @@ class BusinessStaffController extends Controller
         abort_unless($user->belongsToBusiness($business), 403, 'You do not manage this business.');
 
         if ($roles !== null && ! $user->hasBusinessRole($business, ...array_map(
-            fn (string $r) => \App\Enums\BusinessUserRole::from($r),
+            fn (string $r) => BusinessUserRole::from($r),
             $roles,
         ))) {
             abort(403, 'Your role cannot perform this action.');

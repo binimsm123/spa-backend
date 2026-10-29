@@ -161,8 +161,14 @@ class BookingService
     public function confirmRequest(User $user, BookingRequest $request, string $timeId): Booking
     {
         return DB::transaction(function () use ($user, $request, $timeId): Booking {
+            $request = BookingRequest::query()->whereKey($request->getKey())->lockForUpdate()->firstOrFail();
+
             if ($request->user_id !== $user->getKey()) {
                 throw ApiException::forbidden('This booking request belongs to another customer.');
+            }
+
+            if ($request->booking()->exists()) {
+                throw ApiException::conflict(ErrorCode::BookingRequestAlreadyBooked, 'This request already has a booking. Please view your existing booking.');
             }
 
             if ($request->status !== BookingRequestStatus::TimesProposed) {

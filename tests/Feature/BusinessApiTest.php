@@ -348,6 +348,88 @@ it('creates services with prices and preserves price history on update', functio
         ->and($prices->last()->durationMinutes())->toBe(75);
 });
 
+it('filters business staff by active membership status', function (?string $status): void {
+    [$owner, $business] = createBusinessOwner();
+    $activeStaff = User::factory()->create(['is_active' => false]);
+    $inactiveStaff = User::factory()->create(['is_active' => true]);
+    foreach ([[$activeStaff, true], [$inactiveStaff, false]] as [$staff, $isActive]) {
+        BusinessUser::query()->create([
+            'business_id' => $business->getKey(),
+            'user_id' => $staff->getKey(),
+            'role' => 'staff',
+            'is_active' => $isActive,
+        ]);
+    }
+    [$otherBusiness] = createBusinessWithService();
+    BusinessUser::query()->create([
+        'business_id' => $otherBusiness->getKey(),
+        'user_id' => $inactiveStaff->getKey(),
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+    $expectedIds = match ($status) {
+        'active' => [$owner->getKey(), $activeStaff->getKey()],
+        'inactive' => [$inactiveStaff->getKey()],
+        default => [$owner->getKey(), $activeStaff->getKey(), $inactiveStaff->getKey()],
+    };
+    $url = '/api/v1/business/'.$business->getKey().'/staff'.($status !== null ? '?status='.$status : '');
+
+    $this->getJson($url)
+        ->assertOk()
+        ->assertJsonCount(count($expectedIds), 'data.items')
+        ->assertJsonPathCanonicalizing('data.items.*.id', $expectedIds);
+})->with(['all' => [null], 'active' => ['active'], 'inactive' => ['inactive']]);
+
+it('returns 422 for an invalid staff status filter', function (): void {
+    [, $business] = createBusinessOwner();
+
+    $this->getJson('/api/v1/business/'.$business->getKey().'/staff?status=unknown')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('status');
+});
+
+it('filters business staff by role alone or together with membership status', function (string $query, array $expectedMembers): void {
+    [$owner, $business] = createBusinessOwner();
+    $members = ['owner' => $owner];
+    foreach ([['manager', 'manager', true], ['active_staff', 'staff', true], ['inactive_staff', 'staff', false]] as [$name, $role, $active]) {
+        $members[$name] = User::factory()->create();
+        BusinessUser::query()->create([
+            'business_id' => $business->getKey(),
+            'user_id' => $members[$name]->getKey(),
+            'role' => $role,
+            'is_active' => $active,
+        ]);
+    }
+    [$otherBusiness] = createBusinessWithService();
+    BusinessUser::query()->create([
+        'business_id' => $otherBusiness->getKey(),
+        'user_id' => $owner->getKey(),
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+    $expectedIds = array_map(fn (string $name): string => $members[$name]->getKey(), $expectedMembers);
+
+    $this->getJson('/api/v1/business/'.$business->getKey().'/staff?'.$query)
+        ->assertOk()
+        ->assertJsonCount(count($expectedIds), 'data.items')
+        ->assertJsonPathCanonicalizing('data.items.*.id', $expectedIds);
+})->with([
+    'owners' => ['role=owner', ['owner']],
+    'managers' => ['role=manager', ['manager']],
+    'staff' => ['role=staff', ['active_staff', 'inactive_staff']],
+    'active staff' => ['role=staff&status=active', ['active_staff']],
+    'inactive staff' => ['role=staff&status=inactive', ['inactive_staff']],
+    'no matching members' => ['role=manager&status=inactive', []],
+]);
+
+it('returns 422 for an invalid staff role filter', function (): void {
+    [, $business] = createBusinessOwner();
+
+    $this->getJson('/api/v1/business/'.$business->getKey().'/staff?role=superadmin')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('role');
+});
+
 it('invites staff by mobile number and deactivates them', function (): void {
     [$owner, $business] = createBusinessOwner();
 
