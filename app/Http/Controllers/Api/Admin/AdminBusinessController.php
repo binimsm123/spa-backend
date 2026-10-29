@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BusinessStateRequest;
+use App\Http\Requests\Business\UpsertBusinessRequest;
 use App\Http\Resources\BusinessResource;
 use App\Models\Business;
 use App\Models\BusinessOnboarding;
 use App\Services\BusinessOnboardingService;
+use App\Services\BusinessService;
 use App\Support\ApiResponse;
 use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -29,20 +31,34 @@ class AdminBusinessController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
+        $filters = $request->validate([
+            'q' => ['sometimes', 'string', 'max:120'],
+            'status' => ['sometimes', 'string', 'in:pending,active,suspended'],
+            'verification' => ['sometimes', 'string', 'in:verified,unverified'],
+            'online' => ['sometimes', 'boolean'],
+            'created_from' => ['sometimes', 'date_format:Y-m-d'],
+            'created_to' => ['sometimes', 'date_format:Y-m-d'],
+            'signup_from' => ['sometimes', 'string', 'in:web,android,ios'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+        ]);
+        $perPage = (int) ($filters['per_page'] ?? 20);
 
         $query = Business::query()->with(['locations', 'categories'])
-            ->when($request->query('q'), function ($q, $search): void {
+            ->when($filters['q'] ?? null, function ($q, $search): void {
                 $like = '%'.strtolower($search).'%';
                 $q->where(fn ($w) => $w
                     ->whereRaw('LOWER(name) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(slug) LIKE ?', [$like])
                     ->orWhereHas('locations', fn ($locations) => $locations->whereRaw('LOWER(address) LIKE ?', [$like])->orWhereRaw('LOWER(city) LIKE ?', [$like])));
             })
-            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('verification') === 'verified', fn ($q) => $q->where('is_verified', true))
-            ->when($request->query('verification') === 'unverified', fn ($q) => $q->where('is_verified', false))
-            ->when($request->query('online') !== null && $request->has('online'), fn ($q) => $q->where('is_online', $request->boolean('online')))
+            ->when(isset($filters['status']), fn ($q) => $q->where('status', $filters['status']))
+            ->when(($filters['verification'] ?? null) === 'verified', fn ($q) => $q->where('is_verified', true))
+            ->when(($filters['verification'] ?? null) === 'unverified', fn ($q) => $q->where('is_verified', false))
+            ->when(isset($filters['online']), fn ($q) => $q->where('is_online', $filters['online']))
+            ->when(isset($filters['created_from']), fn ($q) => $q->whereDate('created_at', '>=', $filters['created_from']))
+            ->when(isset($filters['created_to']), fn ($q) => $q->whereDate('created_at', '<=', $filters['created_to']))
+            ->when(isset($filters['signup_from']), fn ($q) => $q->where('signup_from', $filters['signup_from']))
             ->orderByDesc('created_at');
 
         return $this->paginated(BusinessResource::collection($query->paginate($perPage)));
@@ -71,6 +87,22 @@ class AdminBusinessController extends Controller
         ]);
 
         return $this->success($data);
+    }
+
+    public function update(UpsertBusinessRequest $request, Business $business, BusinessService $businesses): JsonResponse
+    {
+        $before = $business->only(['name', 'about', 'phone_number', 'status', 'is_verified', 'is_online']);
+        $updated = $businesses->update($business, $request->validated(), adminOverride: true);
+        AuditLogger::record(
+            $request->user(),
+            'business.updated',
+            'business',
+            $updated->getKey(),
+            $before,
+            $updated->only(['name', 'about', 'phone_number', 'status', 'is_verified', 'is_online']),
+        );
+
+        return $this->resource(BusinessResource::make($updated), 'Business updated.');
     }
 
     public function changeState(BusinessStateRequest $request, Business $business): JsonResponse

@@ -29,6 +29,7 @@ class SubmitOnboardingRequest extends FormRequest
             'mobile_number' => ['required', 'string', 'regex:/^\+[1-9]\d{6,14}$/'],
             'pan_number' => ['required', 'string', 'max:20'],
             'business_name' => ['required', 'string', 'max:120'],
+            'signup_from' => ['sometimes', 'nullable', 'string', 'in:web,android,ios'],
             'outlet_count' => ['required', Rule::in(['1', '2', '3', '4', '5', '6+'])],
             'employee_range' => ['required', Rule::in(['solo', '2_5', '6_10', '11_25', '26_plus'])],
             'service_area' => ['required', Rule::in($cities)],

@@ -34,6 +34,7 @@ class Business extends Model
         'is_verified',
         'is_online',
         'status',
+        'signup_from',
         'timezone',
     ];
 

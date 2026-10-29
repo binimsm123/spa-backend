@@ -17,20 +17,48 @@ class AdminUserController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
+        return $this->userList($request);
+    }
 
-        $query = User::query()
-            ->with('roles')
-            ->when($request->query('q'), function ($q, $search): void {
-                $like = '%'.strtolower($search).'%';
-                $q->where(fn ($w) => $w
-                    ->whereRaw('LOWER(display_name) LIKE ?', [$like])
+    public function admins(Request $request): JsonResponse
+    {
+        return $this->userList($request, 'admins');
+    }
+
+    public function customers(Request $request): JsonResponse
+    {
+        return $this->userList($request, 'customer');
+    }
+
+    private function userList(Request $request, ?string $group = null): JsonResponse
+    {
+        $filters = $request->validate([
+            'q' => ['sometimes', 'string', 'max:120'],
+            'role' => ['sometimes', 'string', 'in:superadmin,owner,manager,staff,customer'],
+            'status' => ['sometimes', 'string', 'in:enabled,disabled'],
+            'created_from' => ['sometimes', 'date_format:Y-m-d'],
+            'created_to' => ['sometimes', 'date_format:Y-m-d'],
+            'signup_from' => ['sometimes', 'string', 'in:web,android,ios'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+        ]);
+        $perPage = (int) ($filters['per_page'] ?? 20);
+
+        $query = User::query()->with('roles')
+            ->when($group === 'customer', fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'customer')))
+            ->when($group === 'admins', fn ($q) => $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['superadmin', 'owner', 'manager', 'staff'])))
+            ->when(isset($filters['q']), function ($q) use ($filters): void {
+                $like = '%'.strtolower($filters['q']).'%';
+                $q->where(fn ($w) => $w->whereRaw('LOWER(display_name) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(mobile) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(email) LIKE ?', [$like]));
             })
-            ->when($request->query('role'), fn ($q, $role) => $q->whereHas('roles', fn ($r) => $r->where('name', $role)))
-            ->when($request->query('status') === 'disabled', fn ($q) => $q->where('is_active', false))
-            ->when($request->query('status') === 'enabled', fn ($q) => $q->where('is_active', true))
+            ->when(isset($filters['role']), fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', $filters['role'])))
+            ->when(($filters['status'] ?? null) === 'disabled', fn ($q) => $q->where('is_active', false))
+            ->when(($filters['status'] ?? null) === 'enabled', fn ($q) => $q->where('is_active', true))
+            ->when(isset($filters['created_from']), fn ($q) => $q->whereDate('created_at', '>=', $filters['created_from']))
+            ->when(isset($filters['created_to']), fn ($q) => $q->whereDate('created_at', '<=', $filters['created_to']))
+            ->when(isset($filters['signup_from']), fn ($q) => $q->where('signup_from', $filters['signup_from']))
             ->orderByDesc('created_at');
 
         return $this->paginated(UserResource::collection($query->paginate($perPage)));

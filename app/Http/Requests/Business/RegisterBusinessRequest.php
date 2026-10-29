@@ -29,6 +29,7 @@ class RegisterBusinessRequest extends FormRequest
             'category_ids' => ['sometimes', 'array', Rule::exists('categories', 'id')],
             'category_ids.*' => ['required', 'ulid', 'distinct'],
             'name' => ['required', 'string', 'max:160'],
+            'signup_from' => ['sometimes', 'nullable', 'string', 'in:web,android,ios'],
             'dob' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'hero_image' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'phone_number' => ['required', 'string', 'max:32'],

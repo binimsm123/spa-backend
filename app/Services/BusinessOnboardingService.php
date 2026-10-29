@@ -89,6 +89,7 @@ class BusinessOnboardingService
                         'name' => $data['business_name'], 'slug' => Str::slug($data['business_name']).'-'.Str::lower(Str::ulid()),
                         'phone_number' => $data['mobile_number'], 'status' => 'pending', 'is_verified' => false, 'is_online' => false,
                         'timezone' => 'Asia/Kathmandu', 'home_service' => $data['home_service_location'] !== null, 'location_service' => true,
+                        'signup_from' => $data['signup_from'] ?? null,
                     ]);
                     $business->members()->attach($user->id, ['role' => 'owner', 'is_active' => true]);
                     $user->assignRole('owner');

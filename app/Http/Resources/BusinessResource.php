@@ -18,6 +18,7 @@ class BusinessResource extends JsonResource
             'about' => $this->about,
             'hero_image_url' => $this->hero_image_path ? url('storage/'.$this->hero_image_path) : null,
             'status' => $this->status,
+            'signup_from' => $this->signup_from,
             'is_verified' => (bool) $this->is_verified,
             'is_online' => (bool) $this->is_online,
             'home_service' => (bool) $this->home_service,

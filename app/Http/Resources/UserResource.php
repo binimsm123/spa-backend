@@ -25,6 +25,7 @@ class UserResource extends JsonResource
             'email_verified' => $this->email_verified_at !== null,
             'roles' => $this->getRoleNames(),
             'is_active' => (bool) $this->is_active,
+            'signup_from' => $this->signup_from,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

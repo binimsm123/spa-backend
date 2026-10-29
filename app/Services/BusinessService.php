@@ -481,16 +481,16 @@ class BusinessService
     }
 
     /** @param array<string, mixed> $data Validated business attributes. */
-    public function update(Business $business, array $data): Business
+    public function update(Business $business, array $data, bool $adminOverride = false): Business
     {
         $newFiles = [];
         $oldFiles = [];
 
         try {
-            $updated = DB::transaction(function () use ($business, $data, &$newFiles, &$oldFiles): Business {
+            $updated = DB::transaction(function () use ($business, $data, $adminOverride, &$newFiles, &$oldFiles): Business {
                 $locked = Business::query()->lockForUpdate()->findOrFail($business->getKey());
                 $kycFields = array_intersect(array_keys($data), [...Business::KYC_DOCUMENT_TYPES, 'kyc_documents']);
-                if (BusinessOnboarding::where('business_id', $locked->id)->exists() && array_intersect(array_keys($data), [...Business::KYC_DOCUMENT_TYPES, 'kyc_documents', 'name', 'phone_number']) !== []) {
+                if (! $adminOverride && BusinessOnboarding::where('business_id', $locked->id)->exists() && array_intersect(array_keys($data), [...Business::KYC_DOCUMENT_TYPES, 'kyc_documents', 'name', 'phone_number']) !== []) {
                     throw ApiException::conflict(ErrorCode::Conflict, 'Use the onboarding correction flow to change application details or documents.');
                 }
 
