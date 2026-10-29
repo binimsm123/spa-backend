@@ -20,6 +20,8 @@ Route::middleware(['auth:sanctum', 'throttle:admin', 'permission:admin.dashboard
 
     // Users
     Route::middleware('permission:admin.users.manage')->group(function (): void {
+        Route::get('admin-users', [AdminUserController::class, 'admins']);
+        Route::get('customers', [AdminUserController::class, 'customers']);
         Route::get('users', [AdminUserController::class, 'index']);
         Route::get('users/{user}', [AdminUserController::class, 'show'])->whereUlid('user');
         Route::patch('users/{user}/status', [AdminUserController::class, 'setEnabled'])->whereUlid('user');
@@ -30,6 +32,7 @@ Route::middleware(['auth:sanctum', 'throttle:admin', 'permission:admin.dashboard
     Route::middleware('permission:admin.businesses.manage')->group(function (): void {
         Route::get('businesses', [AdminBusinessController::class, 'index']);
         Route::get('businesses/{business}', [AdminBusinessController::class, 'show'])->whereUlid('business');
+        Route::patch('businesses/{business}', [AdminBusinessController::class, 'update'])->whereUlid('business');
         Route::get('businesses/{business}/onboarding/documents/{document}', [BusinessOnboardingController::class, 'document'])->whereUlid('business')->name('admin.businesses.onboarding.document');
         Route::get('businesses/{business}/documents/{document}', [AdminBusinessController::class, 'document'])->whereUlid('business')->name('admin.businesses.documents.show');
         Route::patch('businesses/{business}/state', [AdminBusinessController::class, 'changeState'])->whereUlid('business');

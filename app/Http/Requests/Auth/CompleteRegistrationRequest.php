@@ -26,6 +26,7 @@ class CompleteRegistrationRequest extends FormRequest
             'registration_token' => ['required', 'string', 'max:200'],
             'password' => ['required', 'confirmed', 'string', 'min:8', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/'],
             'referral_code' => ['nullable', 'string', 'max:32'],
+            'signup_from' => ['sometimes', 'nullable', 'string', 'in:web,android,ios'],
         ];
     }
 

@@ -39,6 +39,7 @@ class User extends Authenticatable
         'latitude',
         'longitude',
         'is_active',
+        'signup_from',
         'reward_points',
         'mobile_verified_at',
         'email_verified_at',

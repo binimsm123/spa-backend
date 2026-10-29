@@ -143,6 +143,7 @@ class AuthService
                 'password' => $data['password'],
                 'display_name' => $mobile,
                 'timezone' => 'Asia/Kathmandu',
+                'signup_from' => $data['signup_from'] ?? null,
                 'mobile_verified_at' => now(),
             ]);
             $user->assignRole('customer');

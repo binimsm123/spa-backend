@@ -30,6 +30,7 @@ class RegisterBusinessRequest extends FormRequest
             'category_ids.*' => ['required', 'ulid', 'distinct'],
             'name' => ['required', 'string', 'max:160'],
             'full_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'signup_from' => ['sometimes', 'nullable', 'string', 'in:web,android,ios'],
             'dob' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'hero_image' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'phone_number' => ['required', 'string', 'max:32'],
@@ -51,7 +52,7 @@ class RegisterBusinessRequest extends FormRequest
             'staff_number' => ['sometimes', 'integer', 'min:0', 'max:2147483647'],
             'outlet_number' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
             'is_insured' => ['sometimes', 'boolean'],
-            'personal_kyc_document' => ['sometimes', 'nullable', 'array:'.implode(',', User::KYC_DOCUMENT_TYPES)],
+            'personal_kyc_document' => ['sometimes', 'nullable', 'array:' . implode(',', User::KYC_DOCUMENT_TYPES)],
         ];
 
         foreach (Business::KYC_DOCUMENT_TYPES as $type) {
@@ -59,9 +60,11 @@ class RegisterBusinessRequest extends FormRequest
         }
 
         foreach (User::KYC_DOCUMENT_TYPES as $type) {
-            $rules['personal_kyc_document.'.$type] = [
+            $rules['personal_kyc_document.' . $type] = [
                 Rule::requiredIf(($this->all()['personal_kyc_document'] ?? null) !== null),
-                'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120',
+                'file',
+                'mimes:pdf,jpg,jpeg,png',
+                'max:5120',
             ];
         }
 

@@ -6,6 +6,33 @@ use App\Models\Offer;
 use App\Models\Review;
 use App\Models\RewardConfiguration;
 use App\Support\AuditLogger;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+
+it('lets admins update business details and upload KYC documents', function (): void {
+    Storage::fake('local');
+    $admin = actingAsSuperadmin();
+    [$business] = createBusinessWithService();
+    $business->forceFill(['is_verified' => false, 'status' => 'pending'])->save();
+
+    $this->actingAs($admin, 'sanctum')
+        ->post("/api/v1/admin/businesses/{$business->getKey()}", [
+            '_method' => 'PATCH',
+            'name' => 'Updated Test Spa',
+            'about' => 'Updated description',
+            'phone_number' => '+9779800000000',
+            'vat_pan_document' => UploadedFile::fake()->create('pan.pdf', 20, 'application/pdf'),
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('data.name', 'Updated Test Spa');
+
+    $business->refresh();
+    expect($business->about)->toBe('Updated description')
+        ->and($business->phone_number)->toBe('+9779800000000')
+        ->and($business->kyc_documents['vat_pan_document'])->toBeString();
+    Storage::disk('local')->assertExists($business->kyc_documents['vat_pan_document']);
+    expect(AuditLog::query()->where('action', 'business.updated')->exists())->toBeTrue();
+});
 
 it('blocks non-admin users from admin routes', function (): void {
     [$customer] = actingAsCustomer();
