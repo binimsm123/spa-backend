@@ -18,6 +18,7 @@ use App\Models\Service;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
 use App\Services\IdempotencyService;
+use App\Support\ApiException;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -111,7 +112,9 @@ class BookingController extends Controller
      */
     public function showRequest(Request $request, BookingRequest $bookingRequest): JsonResponse
     {
-        abort_unless($bookingRequest->user_id === $request->user()->getKey(), 403);
+        if ($bookingRequest->user_id !== $request->user()->getKey()) {
+            throw ApiException::forbidden('This booking request belongs to another customer.');
+        }
 
         $bookingRequest->load(['service', 'business', 'times' => fn ($q) => $q->where('is_available', true)]);
 

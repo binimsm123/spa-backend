@@ -25,6 +25,7 @@ class BookingRequestResource extends JsonResource
             'requested_date' => $this->requested_date?->toDateString(),
             'timezone' => $this->timezone,
             'status' => $this->status->value,
+            'decline_reason' => $this->decline_reason,
             'expires_at' => $this->expires_at?->toIso8601String(),
             'times' => $this->whenLoaded('times', fn () => $this->times->map(fn ($t) => [
                 'id' => $t->id,

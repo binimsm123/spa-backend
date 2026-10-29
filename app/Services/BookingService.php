@@ -269,7 +269,11 @@ class BookingService
                 throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'Only pending or proposed requests can be declined.');
             }
 
-            $request->forceFill(['status' => BookingRequestStatus::Declined->value, 'declined_at' => now()])->save();
+            $request->forceFill([
+                'status' => BookingRequestStatus::Declined->value,
+                'declined_at' => now(),
+                'decline_reason' => $reason,
+            ])->save();
 
             $this->notifications->notify(
                 $request->user,

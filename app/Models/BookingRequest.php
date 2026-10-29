@@ -25,6 +25,7 @@ class BookingRequest extends Model
         'expires_at',
         'accepted_at',
         'declined_at',
+        'decline_reason',
         'confirmed_at',
     ];
 

@@ -3,6 +3,7 @@
 use App\Models\BusinessUser;
 use App\Models\Offer;
 use App\Models\ServicePrice;
+use App\Models\User;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
 use App\Support\ApiException;
@@ -27,6 +28,44 @@ function createBusinessOwner(): array
 
     return [$owner, $business];
 }
+
+it('persists the business rejection reason and returns it to the business and customer', function (?string $reason): void {
+    $this->freezeTime();
+    [$owner, $business] = createBusinessOwner();
+    $customer = User::factory()->create();
+    $service = $business->services()->firstOrFail();
+    $bookingRequest = app(BookingService::class)->createRequest($customer, [
+        'business_id' => $business->getKey(),
+        'service_id' => $service->getKey(),
+        'requested_date' => now()->addDay()->toDateString(),
+    ]);
+    $url = '/api/v1/business/'.$business->getKey().'/bookings/requests';
+
+    $this->postJson($url.'/'.$bookingRequest->getKey().'/decline', ['reason' => $reason])
+        ->assertOk()
+        ->assertJsonPath('data.status', 'declined')
+        ->assertJsonPath('data.decline_reason', $reason);
+
+    $this->assertDatabaseHas('booking_requests', [
+        'id' => $bookingRequest->getKey(),
+        'status' => 'declined',
+        'decline_reason' => $reason,
+    ]);
+    $this->assertDatabaseHas('notifications', [
+        'user_id' => $customer->getKey(),
+        'title' => 'Booking request declined',
+        'body' => $business->name.' cannot serve your request.'.($reason !== null ? ' Reason: '.$reason : ''),
+    ]);
+    $this->getJson($url)->assertOk()->assertJsonPath('data.items.0.decline_reason', $reason);
+    $this->actingAs($customer, 'sanctum')
+        ->getJson('/api/v1/bookings/requests/'.$bookingRequest->getKey())
+        ->assertOk()
+        ->assertJsonPath('data.status', 'declined')
+        ->assertJsonPath('data.decline_reason', $reason);
+})->with([
+    'with reason' => ['No appointments available on the requested date.'],
+    'without reason' => [null],
+]);
 
 it('lists only the price selected for each booking request even when requests share a service', function (): void {
     [$owner, $business] = createBusinessOwner();
