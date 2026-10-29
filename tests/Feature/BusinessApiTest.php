@@ -9,6 +9,7 @@ use App\Services\BookingService;
 use App\Support\ApiException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -430,12 +431,186 @@ it('returns 422 for an invalid staff role filter', function (): void {
         ->assertJsonValidationErrors('role');
 });
 
+it('uses the optional invitation password only when creating a new user', function (array $passwordPayload, string $expectedPassword): void {
+    [, $business] = createBusinessOwner();
+    Str::createRandomStringsUsing(fn (int $length): string => str_repeat('x', $length));
+
+    try {
+        $response = $this->postJson('/api/v1/business/'.$business->getKey().'/staff/invite', [
+            'mobile_number' => '+9779800000001',
+            'display_name' => 'New Staff',
+            'role' => 'staff',
+            ...$passwordPayload,
+        ])->assertCreated()->assertJsonMissingPath('data.password');
+    } finally {
+        Str::createRandomStringsNormally();
+    }
+
+    $user = User::query()->findOrFail($response->json('data.id'));
+    expect(Hash::check($expectedPassword, $user->password))->toBeTrue();
+    $this->assertDatabaseHas('business_users', [
+        'business_id' => $business->getKey(), 'user_id' => $user->getKey(), 'role' => 'staff', 'is_active' => true,
+    ]);
+})->with([
+    'provided password' => [['password' => 'StaffPass#123'], 'StaffPass#123'],
+    'null password' => [['password' => null], str_repeat('x', 24)],
+    'omitted password' => [[], str_repeat('x', 24)],
+]);
+
+it('creates invited staff with an optional job title image and password', function (): void {
+    Storage::fake('public');
+    [, $business] = createBusinessOwner();
+
+    $response = $this->post('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => '9841234567',
+        'display_name' => 'Anita',
+        'job_title' => 'Massage Therapist',
+        'image' => UploadedFile::fake()->image('portrait.jpg'),
+        'password' => 'StaffPass#123',
+        'role' => 'staff',
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('data.job_title', 'Massage Therapist')
+        ->assertJsonMissingPath('data.password');
+
+    $user = User::query()->findOrFail($response->json('data.id'));
+    Storage::disk('public')->assertExists($user->image);
+    expect(Hash::check('StaffPass#123', $user->password))->toBeTrue();
+    $this->assertDatabaseHas('users', ['id' => $user->getKey(), 'job_title' => 'Massage Therapist']);
+    $response->assertJsonPath('data.avatar_url', url('storage/'.$user->image));
+    $this->getJson('/api/v1/business/'.$business->getKey().'/staff?role=staff')
+        ->assertOk()->assertJsonPath('data.items.0.job_title', 'Massage Therapist')
+        ->assertJsonPath('data.items.0.avatar_url', url('storage/'.$user->image));
+});
+
+it('accepts null optional staff profile fields', function (): void {
+    [, $business] = createBusinessOwner();
+
+    $this->postJson('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => '9841234567', 'role' => 'staff',
+        'job_title' => null, 'image' => null, 'password' => null,
+    ])->assertCreated()->assertJsonPath('data.job_title', null)->assertJsonPath('data.avatar_url', null);
+});
+
+it('rejects invalid staff profile fields without creating a user or uploading an image', function (string $kind, string $field): void {
+    Storage::fake('public');
+    [, $business] = createBusinessOwner();
+    $invalidValue = match ($kind) {
+        'long title' => str_repeat('a', 81),
+        'non-image' => UploadedFile::fake()->create('file.pdf', 10, 'application/pdf'),
+        'large image' => UploadedFile::fake()->image('portrait.jpg')->size(5121),
+    };
+
+    $this->post('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => '9841234567', 'role' => 'staff', $field => $invalidValue,
+    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors($field);
+
+    $this->assertDatabaseMissing('users', ['mobile' => '+9779841234567']);
+    Storage::disk('public')->assertDirectoryEmpty('avatars');
+})->with([
+    ['long title', 'job_title'], ['non-image', 'image'], ['large image', 'image'],
+]);
+
+it('removes an uploaded staff image when user creation fails', function (): void {
+    Storage::fake('public');
+    [, $business] = createBusinessOwner();
+    Hash::shouldReceive('make')->once()->andThrow(new RuntimeException('User creation failed.'));
+
+    $this->post('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => '9841234567', 'role' => 'staff',
+        'image' => UploadedFile::fake()->image('portrait.jpg'),
+    ], ['Accept' => 'application/json'])->assertServerError();
+
+    $this->assertDatabaseMissing('users', ['mobile' => '+9779841234567']);
+    Storage::disk('public')->assertDirectoryEmpty('avatars');
+});
+
+it('preserves the existing user password and profile when invited with a password', function (): void {
+    Storage::fake('public');
+    [, $business] = createBusinessOwner();
+    $user = User::factory()->create(['display_name' => 'Original Name', 'job_title' => 'Original Title', 'image' => 'avatars/original.jpg']);
+    $originalHash = $user->password;
+
+    $this->post('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => $user->mobile,
+        'display_name' => 'Replacement Name',
+        'password' => 'Replacement#123',
+        'job_title' => 'Replacement Title',
+        'image' => UploadedFile::fake()->image('replacement.jpg'),
+        'role' => 'staff',
+    ], ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.id', $user->getKey());
+
+    expect($user->refresh()->password)->toBe($originalHash)
+        ->and($user->display_name)->toBe('Original Name')
+        ->and($user->job_title)->toBe('Original Title')
+        ->and($user->image)->toBe('avatars/original.jpg');
+    Storage::disk('public')->assertDirectoryEmpty('avatars');
+    $this->assertDatabaseHas('business_users', [
+        'business_id' => $business->getKey(), 'user_id' => $user->getKey(), 'role' => 'staff', 'is_active' => true,
+    ]);
+});
+
+it('rejects an invalid invitation password without creating a user', function (mixed $password): void {
+    [, $business] = createBusinessOwner();
+
+    $this->postJson('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => '+9779800000001',
+        'role' => 'staff',
+        'password' => $password,
+    ])->assertUnprocessable()->assertJsonValidationErrors('password');
+
+    $this->assertDatabaseMissing('users', ['mobile' => '+9779800000001']);
+})->with(['too short' => ['Ab1!'], 'missing complexity' => ['abcdefgh'], 'invalid type' => [12345678]]);
+
+it('normalizes Nepal mobile numbers before looking up an existing staff user', function (string $mobile): void {
+    [, $business] = createBusinessOwner();
+    $user = User::factory()->create(['mobile' => '+9779841234567']);
+
+    $this->postJson('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => $mobile,
+        'role' => 'staff',
+    ])->assertCreated()->assertJsonPath('data.id', $user->getKey());
+
+    $this->assertDatabaseCount('users', 2);
+})->with(['9841234567', '+9779841234567', '+977 (984) 123-4567']);
+
+it('accepts Nepal mobile prefixes when inviting new staff', function (string $mobile): void {
+    [, $business] = createBusinessOwner();
+
+    $this->postJson('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => $mobile,
+        'role' => 'staff',
+    ])->assertCreated();
+
+    $this->assertDatabaseHas('users', ['mobile' => '+977'.$mobile]);
+})->with(['9611234567', '9711234567', '9841234567']);
+
+it('returns a clear 422 for invalid Nepal mobile numbers without inviting staff', function (mixed $mobile): void {
+    [, $business] = createBusinessOwner();
+
+    $this->postJson('/api/v1/business/'.$business->getKey().'/staff/invite', [
+        'mobile_number' => $mobile,
+        'role' => 'staff',
+    ])->assertUnprocessable()->assertJsonValidationErrors('mobile_number');
+
+    $this->assertDatabaseCount('users', 1);
+    $this->assertDatabaseCount('business_users', 1);
+})->with([
+    'foreign number' => ['+919841234567'],
+    'landline' => ['+97714234567'],
+    'invalid prefix' => ['+9779541234567'],
+    'too short' => ['+977984123456'],
+    'too long' => ['+97798412345678'],
+    'letters' => ['984123456a'],
+    'array' => [['9841234567']],
+    'numeric input' => [9841234567],
+]);
+
 it('invites staff by mobile number and deactivates them', function (): void {
     [$owner, $business] = createBusinessOwner();
 
     $this->actingAs($owner, 'sanctum')
         ->postJson("/api/v1/business/{$business->getKey()}/staff/invite", [
-            'mobile_number' => '+97798'.random_int(7000000, 9999999),
+            'mobile_number' => '+97798'.random_int(10000000, 99999999),
             'role' => 'staff',
         ])->assertCreated()->assertJsonPath('success', true);
 

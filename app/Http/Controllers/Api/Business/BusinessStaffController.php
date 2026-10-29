@@ -15,7 +15,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use RuntimeException;
+use Throwable;
 
 class BusinessStaffController extends Controller
 {
@@ -46,6 +48,8 @@ class BusinessStaffController extends Controller
             ->map(fn (User $u) => [
                 'id' => $u->id,
                 'display_name' => $u->display_name,
+                'job_title' => $u->job_title,
+                'image' => $u->image ? url('storage/'.$u->image) : null,
                 'mobile_number' => $u->mobile,
                 'role' => $u->pivot->role,
                 'is_active' => (bool) $u->pivot->is_active,
@@ -60,25 +64,45 @@ class BusinessStaffController extends Controller
 
         $data = $request->validated();
 
-        $staff = DB::transaction(function () use ($data, $business): User {
-            $user = User::query()->where('mobile', $data['mobile_number'])->first();
+        $imagePath = null;
 
-            if ($user === null) {
-                $user = User::query()->create([
-                    'mobile' => $data['mobile_number'],
-                    'display_name' => $data['display_name'] ?? 'Staff member',
-                    'password' => Hash::make(Str::random(24)),
-                ]);
-                $user->assignRole('staff');
+        try {
+            $staff = DB::transaction(function () use ($data, $business, &$imagePath): User {
+                $user = User::query()->where('mobile', $data['mobile_number'])->first();
+
+                if ($user === null) {
+                    if (isset($data['image'])) {
+                        $imagePath = $data['image']->store('avatars', 'public');
+
+                        if ($imagePath === false) {
+                            throw new RuntimeException('Unable to store the uploaded image. Please retry.');
+                        }
+                    }
+
+                    $user = User::query()->create([
+                        'mobile' => $data['mobile_number'],
+                        'display_name' => $data['name'] ?? 'Staff member',
+                        'job_title' => $data['job_title'] ?? null,
+                        'image' => $imagePath,
+                        'password' => Hash::make($data['password'] ?? 'Staff@123'),
+                    ]);
+                    $user->assignRole('staff');
+                }
+
+                BusinessUser::query()->updateOrCreate(
+                    ['business_id' => $business->getKey(), 'user_id' => $user->getKey()],
+                    ['role' => $data['role'], 'is_active' => true],
+                );
+
+                return $user;
+            });
+        } catch (Throwable $exception) {
+            if (is_string($imagePath)) {
+                Storage::disk('public')->delete($imagePath);
             }
 
-            BusinessUser::query()->updateOrCreate(
-                ['business_id' => $business->getKey(), 'user_id' => $user->getKey()],
-                ['role' => $data['role'], 'is_active' => true],
-            );
-
-            return $user;
-        });
+            throw $exception;
+        }
 
         app(NotificationService::class)->notify(
             $staff,
@@ -91,7 +115,10 @@ class BusinessStaffController extends Controller
         return $this->success([
             'id' => $staff->getKey(),
             'display_name' => $staff->display_name,
+            'job_title' => $staff->job_title,
+            'image' => $staff->image ? url('storage/'.$staff->image) : null,
             'role' => $data['role'],
+            'mobile_number' => $staff->mobile
         ], 'Staff member added.', 201);
     }
 

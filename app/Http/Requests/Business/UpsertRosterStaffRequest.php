@@ -37,6 +37,7 @@ class UpsertRosterStaffRequest extends FormRequest
                 }
             }],
             'remove_avatar' => ['sometimes', 'boolean'],
+            'role' =>'required'
         ];
     }
 }

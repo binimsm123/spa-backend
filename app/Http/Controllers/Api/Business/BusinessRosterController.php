@@ -57,6 +57,8 @@ class BusinessRosterController extends Controller
     private function save(UpsertRosterStaffRequest $request, Business $business, ?BusinessStaff $staff = null): JsonResponse
     {
         $data = $request->validated();
+        // dd($data);
+
         if (isset($data['remove_avatar'])) {
             $data['remove_avatar'] = (bool) $data['remove_avatar'];
         }
