@@ -67,6 +67,46 @@
       "key": "reset_token",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "staff_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "business_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "service_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "booking_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "offer_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "review_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "auth": {
@@ -5049,18 +5089,338 @@
                 "admin",
                 "dashboard"
               ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": [
+            {
+              "name": "200 Success response example",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/admin/dashboard",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "dashboard"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Admin dashboard loaded.\",\n  \"data\": {\n    \"businesses\": {\n      \"total_active\": 0,\n      \"online\": 0,\n      \"offline\": 0,\n      \"pending_verification\": 0\n    },\n    \"customers\": 0,\n    \"bookings\": {\n      \"upcoming\": 0,\n      \"completed\": 0,\n      \"cancelled\": 0\n    },\n    \"payments\": {\n      \"succeeded_total_minor\": 0,\n      \"failed\": 0\n    },\n    \"offers\": {\n      \"active\": 0\n    },\n    \"rewards\": {\n      \"issued\": 0,\n      \"redeemed\": 0\n    },\n    \"unread_notifications\": 0\n  }\n}"
             }
-          }
+          ],
+          "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
         },
         {
           "name": "Users",
           "item": [
             {
+              "name": "List customers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/customers?created_from=&created_to=&status=&signup_from=&q=&per_page=100&page=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "customers"
+                  ],
+                  "query": [
+                    {
+                      "key": "created_from",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "created_to",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "signup_from",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "100",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns a paginated list. Filters: created_from/created_to (YYYY-MM-DD), status (enabled/disabled), signup_from (web/android/ios), q, per_page, page. Successful data contains items and pagination.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/customers?created_from=&created_to=&status=&signup_from=&q=&per_page=100&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "customers"
+                      ],
+                      "query": [
+                        {
+                          "key": "created_from",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "created_to",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "status",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "signup_from",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "q",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "100",
+                          "disabled": true
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": true
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 100,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "List admin users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/admin-users?created_from=&created_to=&status=&signup_from=&q=&per_page=100&page=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "admin-users"
+                  ],
+                  "query": [
+                    {
+                      "key": "created_from",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "created_to",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "signup_from",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "100",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Returns a paginated list. Filters: created_from/created_to (YYYY-MM-DD), status (enabled/disabled), signup_from (web/android/ios), q, per_page, page. Successful data contains items and pagination.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/admin-users?created_from=&created_to=&status=&signup_from=&q=&per_page=100&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "admin-users"
+                      ],
+                      "query": [
+                        {
+                          "key": "created_from",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "created_to",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "status",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "signup_from",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "q",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "100",
+                          "disabled": true
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": true
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 100,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
+                }
+              ]
+            },
+            {
               "name": "List users",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/users?search=&page=1",
+                  "raw": "{{base_url}}/admin/users?q=&role=&status=&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -5070,16 +5430,100 @@
                   ],
                   "query": [
                     {
-                      "key": "search",
-                      "value": ""
+                      "key": "q",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "role",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
                     },
                     {
                       "key": "page",
-                      "value": "1"
+                      "value": "1",
+                      "disabled": false
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/users?q=&role=&status=&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users"
+                      ],
+                      "query": [
+                        {
+                          "key": "q",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "role",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "status",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "User detail",
@@ -5101,8 +5545,55 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/users/:user",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users",
+                        ":user"
+                      ],
+                      "variable": [
+                        {
+                          "key": "user",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Enable/disable user",
@@ -5111,6 +5602,10 @@
                 "header": [
                   {
                     "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
                     "value": "application/json"
                   }
                 ],
@@ -5136,7 +5631,57 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"is_active\": false\n}"
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/users/:user/status",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users",
+                        ":user",
+                        "status"
+                      ],
+                      "variable": [
+                        {
+                          "key": "user",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Set roles",
@@ -5145,6 +5690,10 @@
                 "header": [
                   {
                     "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
                     "value": "application/json"
                   }
                 ],
@@ -5170,7 +5719,57 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"roles\": [\"owner\"]\n}"
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/users/:user/roles",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users",
+                        ":user",
+                        "roles"
+                      ],
+                      "variable": [
+                        {
+                          "key": "user",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5182,7 +5781,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/businesses?status=active&search=",
+                  "raw": "{{base_url}}/admin/businesses?created_from=&created_to=&status=&signup_from=&verification=&online=&q=&per_page=100&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -5192,16 +5791,125 @@
                   ],
                   "query": [
                     {
-                      "key": "status",
-                      "value": "active"
+                      "key": "created_from",
+                      "value": "",
+                      "disabled": true
                     },
                     {
-                      "key": "search",
-                      "value": ""
+                      "key": "created_to",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "signup_from",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "verification",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "online",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "100",
+                      "disabled": true
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": true
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/businesses?q=&status=active&verification=&online=&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "businesses"
+                      ],
+                      "query": [
+                        {
+                          "key": "q",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "status",
+                          "value": "active",
+                          "disabled": false
+                        },
+                        {
+                          "key": "verification",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "online",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Business detail",
@@ -5223,8 +5931,55 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/businesses/:business",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "businesses",
+                        ":business"
+                      ],
+                      "variable": [
+                        {
+                          "key": "business",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Change business state",
@@ -5234,11 +5989,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"status\": \"suspended\",\n  \"reason\": \"Policy violation\"\n}"
+                  "raw": "{\n  \"action\": \"suspend\",\n  \"reason\": \"Policy violation\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/businesses/:business/state",
@@ -5258,7 +6022,216 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"action\": \"suspend\",\n  \"reason\": \"Policy violation\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/businesses/:business/state",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "businesses",
+                        ":business",
+                        "state"
+                      ],
+                      "variable": [
+                        {
+                          "key": "business",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
+            },
+            {
+              "name": "Business onboarding document",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/businesses/:business/onboarding/documents/:document",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "businesses",
+                    ":business",
+                    "onboarding",
+                    "documents",
+                    ":document"
+                  ]
+                },
+                "description": "Downloads an onboarding KYC document. Requires business ULID and document kind; returns a private streamed file, not JSON.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "200 Streamed document",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/businesses/:business/onboarding/documents/:document",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "businesses",
+                        ":business",
+                        "onboarding",
+                        "documents",
+                        ":document"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/octet-stream"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "private, no-store"
+                    }
+                  ],
+                  "body": "<streamed private document bytes>"
+                }
+              ]
+            },
+            {
+              "name": "Business KYC document",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/businesses/:business/documents/:document",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "businesses",
+                    ":business",
+                    "documents",
+                    ":document"
+                  ]
+                },
+                "description": "Downloads a business KYC document. Requires business ULID and document kind; returns a private streamed file, not JSON.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "200 Streamed document",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/businesses/:business/documents/:document",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "businesses",
+                        ":business",
+                        "documents",
+                        ":document"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/octet-stream"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "private, no-store"
+                    }
+                  ],
+                  "body": "<streamed private document bytes>"
+                }
+              ]
             }
           ]
         },
@@ -5278,8 +6251,48 @@
                     "admin",
                     "categories"
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/categories",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "categories"
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": []\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Create category",
@@ -5289,11 +6302,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Facial\",\n  \"slug\": \"facial\"\n}"
+                  "raw": "{\n  \"name\": \"Facial\",\n  \"sort_order\": 0,\n  \"is_active\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/categories",
@@ -5305,7 +6327,54 @@
                     "categories"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "201 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Facial\",\n  \"sort_order\": 0,\n  \"is_active\": true\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/categories",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "categories"
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"id\": \"<ULID>\"\n  }\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Update category",
@@ -5314,6 +6383,10 @@
                 "header": [
                   {
                     "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
                     "value": "application/json"
                   }
                 ],
@@ -5338,23 +6411,166 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Facial & Skin\"\n}"
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/categories/:category",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "categories",
+                        ":category"
+                      ],
+                      "variable": [
+                        {
+                          "key": "category",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "List services (all)",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/services",
+                  "raw": "{{base_url}}/admin/services?q=&business_id=&status=&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "admin",
                     "services"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "business_id",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "status",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/services?q=&business_id=&status=&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "services"
+                      ],
+                      "query": [
+                        {
+                          "key": "q",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "business_id",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "status",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Update service",
@@ -5364,11 +6580,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"is_bookable\": false\n}"
+                  "raw": "{\n  \"is_bookable\": false,\n  \"status\": \"inactive\",\n  \"max_people\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/services/:service",
@@ -5387,7 +6612,61 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"is_bookable\": false,\n  \"status\": \"inactive\",\n  \"max_people\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/services/:service",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "services",
+                        ":service"
+                      ],
+                      "variable": [
+                        {
+                          "key": "service",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5399,7 +6678,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/bookings?status=&date_from=&date_to=",
+                  "raw": "{{base_url}}/admin/bookings?q=&status=&from=&to=&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -5409,20 +6688,110 @@
                   ],
                   "query": [
                     {
+                      "key": "q",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
                       "key": "status",
-                      "value": ""
+                      "value": "",
+                      "disabled": true
                     },
                     {
-                      "key": "date_from",
-                      "value": ""
+                      "key": "from",
+                      "value": "",
+                      "disabled": true
                     },
                     {
-                      "key": "date_to",
-                      "value": ""
+                      "key": "to",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/bookings?q=&status=&from=&to=&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "bookings"
+                      ],
+                      "query": [
+                        {
+                          "key": "q",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "status",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "from",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "to",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Booking detail",
@@ -5444,8 +6813,55 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/bookings/:booking",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "bookings",
+                        ":booking"
+                      ],
+                      "variable": [
+                        {
+                          "key": "booking",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Update status",
@@ -5455,11 +6871,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"status\": \"cancelled\",\n  \"reason\": \"Duplicate\"\n}"
+                  "raw": "{\n  \"status\": \"cancelled\",\n  \"note\": \"Duplicate booking\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/bookings/:booking/status",
@@ -5479,7 +6904,62 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"status\": \"cancelled\",\n  \"note\": \"Duplicate booking\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/bookings/:booking/status",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "bookings",
+                        ":booking",
+                        "status"
+                      ],
+                      "variable": [
+                        {
+                          "key": "booking",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Reassign staff",
@@ -5489,11 +6969,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"assigned_staff_user_id\": \"<ULID>\"\n}"
+                  "raw": "{\n  \"staff_user_id\": \"{{staff_user_id}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/bookings/:booking/staff",
@@ -5513,7 +7002,62 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"staff_user_id\": \"{{staff_user_id}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/bookings/:booking/staff",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "bookings",
+                        ":booking",
+                        "staff"
+                      ],
+                      "variable": [
+                        {
+                          "key": "booking",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5525,7 +7069,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/payments?status=succeeded&gateway=esewa",
+                  "raw": "{{base_url}}/admin/payments?status=succeeded&gateway=esewa&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -5536,15 +7080,89 @@
                   "query": [
                     {
                       "key": "status",
-                      "value": "succeeded"
+                      "value": "succeeded",
+                      "disabled": false
                     },
                     {
                       "key": "gateway",
-                      "value": "esewa"
+                      "value": "esewa",
+                      "disabled": false
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/payments?status=succeeded&gateway=esewa&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "payments"
+                      ],
+                      "query": [
+                        {
+                          "key": "status",
+                          "value": "succeeded",
+                          "disabled": false
+                        },
+                        {
+                          "key": "gateway",
+                          "value": "esewa",
+                          "disabled": false
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Payment detail",
@@ -5566,8 +7184,55 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/payments/:payment",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "payments",
+                        ":payment"
+                      ],
+                      "variable": [
+                        {
+                          "key": "payment",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Refund payment",
@@ -5577,11 +7242,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount_minor\": 500000,\n  \"reason\": \"Service complaint\"\n}"
+                  "raw": "{\n  \"reason\": \"Service complaint\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/payments/:payment/refund",
@@ -5601,7 +7275,62 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"Service complaint\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/payments/:payment/refund",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "payments",
+                        ":payment",
+                        "refund"
+                      ],
+                      "variable": [
+                        {
+                          "key": "payment",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5621,8 +7350,48 @@
                     "admin",
                     "offers"
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/offers",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "offers"
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Create offer",
@@ -5632,11 +7401,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"code\": \"PLATFORM10\",\n  \"title\": \"Platform 10%\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 10,\n  \"starts_at\": \"2026-10-01\",\n  \"expires_at\": \"2026-12-01\"\n}"
+                  "raw": "{\n  \"code\": \"PLATFORM10\",\n  \"title\": \"Platform 10%\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 10,\n  \"starts_at\": \"2026-10-01T00:00:00Z\",\n  \"expires_at\": \"2026-12-01T00:00:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/offers",
@@ -5648,7 +7426,54 @@
                     "offers"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "201 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"code\": \"PLATFORM10\",\n  \"title\": \"Platform 10%\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 10,\n  \"starts_at\": \"2026-10-01T00:00:00Z\",\n  \"expires_at\": \"2026-12-01T00:00:00Z\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/offers",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "offers"
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"id\": \"<ULID>\"\n  }\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Update offer",
@@ -5657,6 +7482,10 @@
                 "header": [
                   {
                     "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
                     "value": "application/json"
                   }
                 ],
@@ -5681,7 +7510,56 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"Platform 15%\"\n}"
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/offers/:offer",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "offers",
+                        ":offer"
+                      ],
+                      "variable": [
+                        {
+                          "key": "offer",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Expire offer",
@@ -5704,8 +7582,56 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "{{base_url}}/admin/offers/:offer/expire",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "offers",
+                        ":offer",
+                        "expire"
+                      ],
+                      "variable": [
+                        {
+                          "key": "offer",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5726,8 +7652,49 @@
                     "rewards",
                     "configurations"
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/rewards/configurations",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "rewards",
+                        "configurations"
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": []\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Create configuration",
@@ -5737,11 +7704,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"points_per_rupee\": 2,\n  \"basis\": \"post_discount\"\n}"
+                  "raw": "{\n  \"points_per_rupee\": 2,\n  \"basis\": \"post_discount\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/rewards/configurations",
@@ -5754,14 +7730,62 @@
                     "configurations"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "201 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"points_per_rupee\": 2,\n  \"basis\": \"post_discount\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/rewards/configurations",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "rewards",
+                        "configurations"
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"id\": \"<ULID>\"\n  }\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "List reward transactions",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/rewards/transactions",
+                  "raw": "{{base_url}}/admin/rewards/transactions?type=&user_id=&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -5769,9 +7793,94 @@
                     "admin",
                     "rewards",
                     "transactions"
+                  ],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "user_id",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/rewards/transactions?type=&user_id=&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "rewards",
+                        "transactions"
+                      ],
+                      "query": [
+                        {
+                          "key": "type",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "user_id",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Adjust user balance",
@@ -5781,11 +7890,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"delta\": 500,\n  \"reason\": \"Goodwill credit\"\n}"
+                  "raw": "{\n  \"points\": 500,\n  \"reason\": \"Goodwill credit\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/users/:user/rewards/adjust",
@@ -5806,7 +7924,63 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"points\": 500,\n  \"reason\": \"Goodwill credit\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/users/:user/rewards/adjust",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users",
+                        ":user",
+                        "rewards",
+                        "adjust"
+                      ],
+                      "variable": [
+                        {
+                          "key": "user",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"transaction_id\": \"<ULID>\",\n    \"balance_after\": 0\n  }\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5818,16 +7992,110 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/reviews",
+                  "raw": "{{base_url}}/admin/reviews?business_id=&rating=&hidden=&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "admin",
                     "reviews"
+                  ],
+                  "query": [
+                    {
+                      "key": "business_id",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "rating",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "hidden",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reviews?business_id=&rating=&hidden=&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reviews"
+                      ],
+                      "query": [
+                        {
+                          "key": "business_id",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "rating",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "hidden",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Review detail",
@@ -5849,8 +8117,55 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reviews/:review",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reviews",
+                        ":review"
+                      ],
+                      "variable": [
+                        {
+                          "key": "review",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Hide review",
@@ -5873,8 +8188,74 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Contains personal information\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reviews/:review/hide",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reviews",
+                        ":review",
+                        "hide"
+                      ],
+                      "variable": [
+                        {
+                          "key": "review",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"Contains personal information\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Restore review",
@@ -5897,8 +8278,56 @@
                       "value": "<ULID>"
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reviews/:review/restore",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reviews",
+                        ":review",
+                        "restore"
+                      ],
+                      "variable": [
+                        {
+                          "key": "review",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5910,16 +8339,110 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/notifications",
+                  "raw": "{{base_url}}/admin/notifications?unread=&type=&user_id=&per_page=20&page=1",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "admin",
                     "notifications"
+                  ],
+                  "query": [
+                    {
+                      "key": "unread",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "type",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "user_id",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/notifications?unread=&type=&user_id=&per_page=20&page=1",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "notifications"
+                      ],
+                      "query": [
+                        {
+                          "key": "unread",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "type",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "user_id",
+                          "value": "",
+                          "disabled": true
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "20",
+                          "disabled": false
+                        },
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
                 }
-              }
+              ]
             },
             {
               "name": "Mark read",
@@ -5929,12 +8452,12 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"read\": true\n}"
-                },
                 "url": {
                   "raw": "{{base_url}}/admin/notifications/:notification/read",
                   "host": [
@@ -5953,7 +8476,53 @@
                     }
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{base_url}}/admin/notifications/:notification/read",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "notifications",
+                        ":notification",
+                        "read"
+                      ],
+                      "variable": [
+                        {
+                          "key": "notification",
+                          "value": "<ULID>"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {}\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Send announcement",
@@ -5963,11 +8532,20 @@
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Maintenance window\",\n  \"body\": \"The platform will be under maintenance on Sunday.\",\n  \"audience\": \"all\"\n}"
+                  "raw": "{\n  \"title\": \"Maintenance window\",\n  \"body\": \"The platform will be under maintenance on Sunday.\",\n  \"scheduled_for\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "url": {
                   "raw": "{{base_url}}/admin/announcements",
@@ -5979,7 +8557,54 @@
                     "announcements"
                   ]
                 }
-              }
+              },
+              "response": [
+                {
+                  "name": "201 Success response example",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"Maintenance window\",\n  \"body\": \"The platform will be under maintenance on Sunday.\",\n  \"scheduled_for\": null\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{base_url}}/admin/announcements",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "announcements"
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"recipients\": 0,\n    \"scheduled_for\": null\n  }\n}"
+                }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -5991,7 +8616,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/reports/bookings?date_from=2026-10-01&date_to=2026-10-31",
+                  "raw": "{{base_url}}/admin/reports/bookings?from=2026-10-01&to=2026-10-31&group_by=date",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -6002,23 +8627,88 @@
                   ],
                   "query": [
                     {
-                      "key": "date_from",
-                      "value": "2026-10-01"
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "disabled": false
                     },
                     {
-                      "key": "date_to",
-                      "value": "2026-10-31"
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "disabled": false
+                    },
+                    {
+                      "key": "group_by",
+                      "value": "date",
+                      "disabled": false
                     }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reports/bookings?from=2026-10-01&to=2026-10-31&group_by=date",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reports",
+                        "bookings"
+                      ],
+                      "query": [
+                        {
+                          "key": "from",
+                          "value": "2026-10-01",
+                          "disabled": false
+                        },
+                        {
+                          "key": "to",
+                          "value": "2026-10-31",
+                          "disabled": false
+                        },
+                        {
+                          "key": "group_by",
+                          "value": "date",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"from\": \"2026-10-01\",\n    \"to\": \"2026-10-31\"\n  }\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Payments report",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/reports/payments",
+                  "raw": "{{base_url}}/admin/reports/payments?from=2026-10-01&to=2026-10-31",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -6026,16 +8716,81 @@
                     "admin",
                     "reports",
                     "payments"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "disabled": false
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "disabled": false
+                    }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reports/payments?from=2026-10-01&to=2026-10-31",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reports",
+                        "payments"
+                      ],
+                      "query": [
+                        {
+                          "key": "from",
+                          "value": "2026-10-01",
+                          "disabled": false
+                        },
+                        {
+                          "key": "to",
+                          "value": "2026-10-31",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"by_status\": [],\n    \"by_gateway\": []\n  }\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Popular services",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{base_url}}/admin/reports/popular-services",
+                  "raw": "{{base_url}}/admin/reports/popular-services?from=2026-10-01&to=2026-10-31",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -6043,9 +8798,74 @@
                     "admin",
                     "reports",
                     "popular-services"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-10-01",
+                      "disabled": false
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-10-31",
+                      "disabled": false
+                    }
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reports/popular-services?from=2026-10-01&to=2026-10-31",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reports",
+                        "popular-services"
+                      ],
+                      "query": [
+                        {
+                          "key": "from",
+                          "value": "2026-10-01",
+                          "disabled": false
+                        },
+                        {
+                          "key": "to",
+                          "value": "2026-10-31",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": []\n  }\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Business performance",
@@ -6061,8 +8881,49 @@
                     "reports",
                     "business-performance"
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reports/business-performance",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reports",
+                        "business-performance"
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": []\n  }\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Reviews report",
@@ -6078,8 +8939,49 @@
                     "reports",
                     "reviews"
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reports/reviews",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reports",
+                        "reviews"
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": []\n  }\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             },
             {
               "name": "Offers report",
@@ -6095,8 +8997,49 @@
                     "reports",
                     "offers"
                   ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "response": [
+                {
+                  "name": "200 Success response example",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/reports/offers",
+                      "host": [
+                        "{{base_url}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "reports",
+                        "offers"
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": []\n  }\n}"
                 }
-              }
+              ],
+              "description": "Verified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource."
             }
           ]
         },
@@ -6105,7 +9048,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/admin/audit-logs?action=&page=1",
+              "raw": "{{base_url}}/admin/audit-logs?action=&actor_user_id=&target_type=&per_page=20&page=1",
               "host": [
                 "{{base_url}}"
               ],
@@ -6116,17 +9059,102 @@
               "query": [
                 {
                   "key": "action",
-                  "value": ""
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "actor_user_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "target_type",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "disabled": false
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "disabled": false
                 }
               ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "description": "Verified response: successful JSON envelope {success,message,data}. List endpoints paginate with data.items and data.pagination (page, per_page, total, total_pages, has_more); detail endpoints return a resource object in data.\nVerified response example shows the documented envelope and data container; resource payload fields follow the corresponding backend Resource.",
+          "response": [
+            {
+              "name": "200 Success response example",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/admin/audit-logs?action=&actor_user_id=&target_type=&per_page=20&page=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "audit-logs"
+                  ],
+                  "query": [
+                    {
+                      "key": "action",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "actor_user_id",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "target_type",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20",
+                      "disabled": false
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Request completed successfully.\",\n  \"data\": {\n    \"items\": [],\n    \"pagination\": {\n      \"page\": 1,\n      \"per_page\": 20,\n      \"total\": 0,\n      \"total_pages\": 1,\n      \"has_more\": false\n    }\n  }\n}"
             }
-          }
+          ]
         }
-      ]
+      ],
+      "description": "Complete admin route collection from routes/api/admin.php. All requests use Bearer access_token and Accept: application/json. Parameter verification: every query/body field below was checked against its controller/request validation. Successful JSON responses use {success:boolean,message:string,data:...}. Paginated list endpoints return data:{items:[...],pagination:{page,per_page,total,total_pages,has_more}}. Categories return data:{items:[...]}; report endpoints return data objects with items or named aggregates as described by their controller. Document downloads return a private streamed file, not a JSON envelope. Collection examples show response envelope and data container shape; resource item fields are defined by the backend API Resources. Admin routes require admin.dashboard.view plus each module permission. Business onboarding and KYC document routes are included as private streamed downloads. Separate GET /admin/admin-users and GET /admin/customers directories accept created_from, created_to, status, signup_from, q, per_page, and page. Business listing supports the same date/source filters plus business status, verification, and online filters."
     },
     {
       "name": "Webhooks",
