@@ -170,6 +170,20 @@ it('creates service photos in upload order regardless of array keys', function (
     'sparse keys' => [[5, 2]],
 ]);
 
+it('makes a deleted service inactive and unbookable', function (): void {
+    [$business] = serviceManagementFixture();
+    $service = $business->services()->firstOrFail();
+    $url = '/api/v1/business/'.$business->getKey().'/services/'.$service->getKey();
+
+    $this->deleteJson($url)->assertOk();
+
+    $this->assertSoftDeleted($service);
+    $this->assertDatabaseHas('services', [
+        'id' => $service->getKey(), 'status' => 'inactive', 'is_bookable' => false,
+    ]);
+    $this->getJson($url)->assertNotFound();
+});
+
 it('preserves service write restrictions without saving uploads', function (string $kind, int $status, string $message): void {
     [$business, $payload] = serviceManagementFixture();
     if ($kind === 'staff') {

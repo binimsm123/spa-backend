@@ -221,7 +221,11 @@ class ServiceManagement
 
         $management->removeAfterCommit('public', $record->image_path);
         $record->photos()->delete();
-        $record->forceFill(['image_path' => null])->save();
+        $record->forceFill([
+            'image_path' => null,
+            'status' => 'inactive',
+            'is_bookable' => false,
+        ])->save();
         $record->delete();
     }
 }
