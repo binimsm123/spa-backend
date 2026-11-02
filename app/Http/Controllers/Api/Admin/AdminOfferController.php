@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Business\UpsertOfferRequest;
 use App\Http\Resources\OfferResource;
 use App\Models\Offer;
-use App\Support\AuditLogger;
+use App\Support\ApiException;
 use App\Support\ApiResponse;
+use App\Support\AuditLogger;
+use App\Support\ErrorCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminOfferController extends Controller
 {
@@ -51,6 +54,34 @@ class AdminOfferController extends Controller
         AuditLogger::record($request->user(), 'offer.updated', 'offer', $offer->getKey(), $before, $offer->only(['code', 'title', 'status', 'discount_type', 'discount_value', 'starts_at', 'expires_at']));
 
         return $this->resource(OfferResource::make($offer->refresh()), 'Offer updated.');
+    }
+
+    public function destroy(Request $request, Offer $offer): JsonResponse
+    {
+        DB::transaction(function () use ($request, $offer): void {
+            $record = Offer::query()->whereKey($offer->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $record->is_platform_sponsored) {
+                throw ApiException::conflict(ErrorCode::Conflict, 'Only admin-created offers can be deleted through this endpoint.');
+            }
+
+            if (! $record->starts_at->isFuture()) {
+                throw ApiException::conflict(ErrorCode::Conflict, 'Only offers with a future start date can be deleted.');
+            }
+
+            if ($record->usage_count !== 0 || $record->redemptions()->exists()) {
+                throw ApiException::conflict(ErrorCode::Conflict, 'Offers with usage or redemption history cannot be deleted.');
+            }
+
+            $before = $record->only(['code', 'title', 'status', 'starts_at', 'expires_at', 'usage_count']);
+            $record->delete();
+
+            AuditLogger::record($request->user(), 'offer.deleted', 'offer', $record->getKey(), $before, [
+                'deleted_at' => $record->deleted_at->toIso8601String(),
+            ]);
+        });
+
+        return $this->success(message: 'Offer deleted.');
     }
 
     public function expire(Request $request, Offer $offer): JsonResponse

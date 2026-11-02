@@ -67,6 +67,7 @@ Route::middleware(['auth:sanctum', 'throttle:admin', 'permission:admin.dashboard
         Route::get('offers', [AdminOfferController::class, 'index']);
         Route::post('offers', [AdminOfferController::class, 'store']);
         Route::patch('offers/{offer}', [AdminOfferController::class, 'update'])->whereUlid('offer');
+        Route::delete('offers/{offer}', [AdminOfferController::class, 'destroy'])->whereUlid('offer');
         Route::post('offers/{offer}/expire', [AdminOfferController::class, 'expire'])->whereUlid('offer');
     });
 
