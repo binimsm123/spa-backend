@@ -13,6 +13,12 @@ class Service extends Model
 {
     use HasFactory, HasUlid, SoftDeletes;
 
+    protected $attributes = [
+        'max_people' => 1,
+        'is_bookable' => true,
+        'status' => 'active',
+    ];
+
     protected $fillable = [
         'business_id',
         'category_id',

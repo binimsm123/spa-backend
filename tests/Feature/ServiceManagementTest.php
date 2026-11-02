@@ -108,6 +108,68 @@ it('permits managers to create a service', function (): void {
         ->assertCreated()->assertJsonPath('data.name', 'Deep tissue');
 });
 
+it('returns persisted service settings when creating a service', function (array $settings, array $expected): void {
+    [$business, $payload] = serviceManagementFixture();
+
+    $created = $this->withHeader('Idempotency-Key', 'default-create')
+        ->postJson('/api/v1/business/'.$business->getKey().'/services', array_replace($payload, $settings))
+        ->assertCreated()
+        ->assertJsonPath('data.max_people', $expected['max_people'])
+        ->assertJsonPath('data.is_bookable', $expected['is_bookable'])
+        ->assertJsonPath('data.status', $expected['status']);
+
+    $this->assertDatabaseHas('services', ['id' => $created->json('data.id'), ...$expected]);
+})->with([
+    'defaults' => [[], ['max_people' => 1, 'is_bookable' => true, 'status' => 'active']],
+    'explicit settings' => [
+        ['max_people' => 4, 'is_bookable' => false, 'status' => 'inactive'],
+        ['max_people' => 4, 'is_bookable' => false, 'status' => 'inactive'],
+    ],
+]);
+
+it('rejects anonymous service creation with 401', function (): void {
+    [$business] = createBusinessWithService();
+
+    $this->postJson('/api/v1/business/'.$business->getKey().'/services', [
+        'name' => 'Unauthorized service', 'duration' => '01:00', 'price_minor' => 100000,
+    ])->assertUnauthorized();
+
+    $this->assertDatabaseMissing('services', ['name' => 'Unauthorized service']);
+});
+
+it('rejects service creation for another business with 403 without saving uploads', function (): void {
+    [$business, $payload] = serviceManagementFixture();
+    $this->actingAs(User::factory()->create(), 'sanctum');
+
+    $this->withHeader('Idempotency-Key', 'foreign-business')
+        ->postJson('/api/v1/business/'.$business->getKey().'/services', $payload)
+        ->assertForbidden()->assertJsonPath('message', 'You do not manage this business.');
+
+    $this->assertDatabaseMissing('services', ['business_id' => $business->getKey(), 'name' => $payload['name']]);
+    expect(Storage::disk('public')->allFiles())->toBe([]);
+});
+
+it('creates service photos in upload order regardless of array keys', function (array $keys): void {
+    [$business, $payload] = serviceManagementFixture();
+    $payload['images'] = array_combine($keys, [
+        UploadedFile::fake()->image('first.png'), UploadedFile::fake()->image('second.png'),
+    ]);
+
+    $created = $this->withHeader('Idempotency-Key', 'keyed-images')
+        ->post('/api/v1/business/'.$business->getKey().'/services', $payload, ['Accept' => 'application/json'])
+        ->assertCreated()->assertJsonCount(2, 'data.photos');
+
+    $photos = ServicePhoto::query()->where('service_id', $created->json('data.id'))->orderBy('position')->get();
+    expect($photos->pluck('position')->all())->toBe([0, 1]);
+    expect($photos->pluck('id')->all())->toBe(array_column($created->json('data.photos'), 'id'));
+    foreach ($photos as $photo) {
+        Storage::disk('public')->assertExists($photo->path);
+    }
+})->with([
+    'named keys' => [['cover', 'detail']],
+    'sparse keys' => [[5, 2]],
+]);
+
 it('preserves service write restrictions without saving uploads', function (string $kind, int $status, string $message): void {
     [$business, $payload] = serviceManagementFixture();
     if ($kind === 'staff') {

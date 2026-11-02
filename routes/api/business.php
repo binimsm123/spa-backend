@@ -4,7 +4,6 @@ use App\Http\Controllers\Api\Business\BusinessBookingController;
 use App\Http\Controllers\Api\Business\BusinessOfferController;
 use App\Http\Controllers\Api\Business\BusinessOnboardingController;
 use App\Http\Controllers\Api\Business\BusinessProfileController;
-use App\Http\Controllers\Api\Business\BusinessRosterController;
 use App\Http\Controllers\Api\Business\BusinessServiceController;
 use App\Http\Controllers\Api\Business\BusinessStaffController;
 use Illuminate\Support\Facades\Route;

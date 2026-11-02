@@ -20,6 +20,10 @@ class ServiceManagement
             $data['management_version'] = 1;
         }
 
+        if (isset($data['images'])) {
+            $data['images'] = array_values($data['images']);
+        }
+
         if (isset($data['prices'])) {
             $data['prices'] = array_map(fn (array $price): array => [
                 'duration' => $price['duration'],
