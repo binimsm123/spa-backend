@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\Business;
 
+use App\Enums\BusinessUserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Business\UpsertOfferRequest;
 use App\Http\Resources\OfferResource;
 use App\Models\Business;
 use App\Models\Offer;
 use App\Support\ApiResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,10 +21,23 @@ class BusinessOfferController extends Controller
     {
         $this->assertMember($request, $business);
 
-        $offers = $business->offers()->withCount('redemptions as redemption_count')->latest()->get();
+        $offers = Offer::query()
+            ->where(function (Builder $query) use ($business): void {
+                $query->where('business_id', $business->getKey())
+                    ->orWhere(function (Builder $platform) use ($business): void {
+                        $platform->whereNull('business_id')->where('is_platform_sponsored', true)
+                            ->where(function (Builder $services) use ($business): void {
+                                $services->whereNull('service_id')
+                                    ->orWhereHas('service', fn (Builder $service): Builder => $service->where('business_id', $business->getKey()));
+                            });
+                    });
+            })
+            ->withCount('redemptions as redemption_count')->latest()->get();
 
         return $this->success(['items' => collect($offers)->map(function (Offer $offer) {
             $data = OfferResource::make($offer)->resolve();
+            $data['business_id'] = $offer->business_id;
+            $data['is_platform_sponsored'] = (bool) $offer->is_platform_sponsored;
             $data['redemption_count'] = (int) $offer->redemption_count;
             $data['remaining_usage'] = $offer->total_usage_limit !== null
                 ? max(0, $offer->total_usage_limit - $offer->usage_count)
@@ -72,7 +87,7 @@ class BusinessOfferController extends Controller
         abort_unless($user->belongsToBusiness($business), 403, 'You do not manage this business.');
 
         if ($roles !== null && ! $user->hasBusinessRole($business, ...array_map(
-            fn (string $r) => \App\Enums\BusinessUserRole::from($r),
+            fn (string $r) => BusinessUserRole::from($r),
             $roles,
         ))) {
             abort(403, 'Your role cannot perform this action.');
