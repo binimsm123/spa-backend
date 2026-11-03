@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
 use App\Support\ApiException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 it('returns a clear 409 instead of creating a duplicate booking even when the request status is inconsistent', function (string $status): void {
@@ -80,6 +81,126 @@ it('returns available slots for a service and blocks past dates', function (): v
     // Past date is rejected.
     $this->getJson("/api/v1/businesses/{$service->business_id}/services/{$service->getKey()}/availability?business_id={$business->getKey()}&date=2020-01-01&timezone=UTC")
         ->assertStatus(422);
+});
+
+it('returns 404 without service data when availability is requested for an unavailable business', function (array $attributes): void {
+    $this->freezeTime();
+    [$business, $service] = createBusinessWithService();
+    $business->update($attributes);
+    $date = now()->addDay()->toDateString();
+
+    $this->actingAs(User::factory()->create(), 'sanctum')
+        ->getJson("/api/v1/businesses/{$business->getKey()}/services/{$service->getKey()}/availability?date={$date}")
+        ->assertNotFound()
+        ->assertJsonMissingPath('data.service');
+})->with([
+    'offline business' => [['is_online' => false]],
+    'inactive business' => [['status' => 'paused']],
+]);
+
+it('shows only future start times for today', function (string $currentTime, array $expectedSlots): void {
+    $this->travelTo(Carbon::parse('2026-11-03 '.$currentTime, 'UTC'));
+    [$business, $service] = createBusinessWithService();
+    $business->hours()->update(['closes_at' => '12:00']);
+
+    $this->actingAs(User::factory()->create(), 'sanctum')
+        ->getJson("/api/v1/businesses/{$business->getKey()}/services/{$service->getKey()}/availability?date=2026-11-03")
+        ->assertOk()
+        ->assertJsonPath('data.dates.0.slots', $expectedSlots);
+})->with([
+    'before the next slot' => ['09:50:00', [
+        ['starts_at' => '10:00', 'ends_at' => '11:00'],
+        ['starts_at' => '10:30', 'ends_at' => '11:30'],
+        ['starts_at' => '11:00', 'ends_at' => '12:00'],
+    ]],
+    'exactly at a slot start' => ['10:00:00', [
+        ['starts_at' => '10:30', 'ends_at' => '11:30'],
+        ['starts_at' => '11:00', 'ends_at' => '12:00'],
+    ]],
+    'after closing' => ['12:00:00', []],
+]);
+
+it('shows future slots for the business local today when UTC has reached tomorrow', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-04 00:00:00', 'UTC'));
+    [$business, $service] = createBusinessWithService();
+    $business->update(['timezone' => 'America/Los_Angeles']);
+    $business->hours()->update(['closes_at' => '18:00']);
+
+    $this->actingAs(User::factory()->create(), 'sanctum')
+        ->getJson("/api/v1/businesses/{$business->getKey()}/services/{$service->getKey()}/availability?date=2026-11-03")
+        ->assertOk()
+        ->assertJsonPath('data.dates.0.slots', [
+            ['starts_at' => '16:30', 'ends_at' => '17:30'],
+            ['starts_at' => '17:00', 'ends_at' => '18:00'],
+        ]);
+});
+
+it('accepts booking requests for today in the business timezone', function (string $currentTime, string $timezone, string $requestedDate): void {
+    $this->travelTo(Carbon::parse($currentTime, 'UTC'));
+    [$business, $service] = createBusinessWithService();
+    $business->update(['timezone' => $timezone]);
+    $customer = User::factory()->create();
+
+    $this->actingAs($customer, 'sanctum')
+        ->postJson('/api/v1/bookings/requests', [
+            'business_id' => $business->getKey(),
+            'service_id' => $service->getKey(),
+            'requested_date' => $requestedDate,
+        ])
+        ->assertAccepted()
+        ->assertJsonPath('data.requested_date', $requestedDate);
+
+    $this->assertDatabaseHas('booking_requests', [
+        'user_id' => $customer->getKey(),
+        'business_id' => $business->getKey(),
+        'requested_date' => $requestedDate,
+    ]);
+})->with([
+    'UTC today' => ['2026-11-03 10:00:00', 'UTC', '2026-11-03'],
+    'local date behind UTC' => ['2026-11-04 00:00:00', 'America/Los_Angeles', '2026-11-03'],
+    'local date ahead of UTC' => ['2026-11-03 23:30:00', 'Asia/Kathmandu', '2026-11-04'],
+]);
+
+it('hides proposed booking times that have already started', function (string $currentTime, string $timezone): void {
+    $this->travelTo(Carbon::parse($currentTime, 'UTC'));
+    [$business, $service] = createBusinessWithService();
+    $business->update(['timezone' => $timezone]);
+    $customer = User::factory()->create();
+    $bookingRequest = app(BookingService::class)->createRequest($customer, [
+        'business_id' => $business->getKey(),
+        'service_id' => $service->getKey(),
+        'requested_date' => '2026-11-03',
+    ]);
+    app(BookingService::class)->proposeTimes($bookingRequest, ['09:00', '10:00', '11:00'], $customer);
+    $futureTimeId = $bookingRequest->times()->whereTime('starts_at', '11:00')->value('id');
+    $this->travel(2)->hours();
+
+    $this->actingAs($customer, 'sanctum')
+        ->getJson('/api/v1/bookings/requests/'.$bookingRequest->getKey())
+        ->assertOk()
+        ->assertJsonPath('data.available_times', [
+            ['time_id' => $futureTimeId, 'starts_at' => '11:00'],
+        ]);
+})->with([
+    'UTC' => ['2026-11-03 08:00:00', 'UTC'],
+    'Kathmandu' => ['2026-11-03 02:15:00', 'Asia/Kathmandu'],
+]);
+
+it('rejects booking requests for yesterday in the business timezone', function (): void {
+    $this->travelTo(Carbon::parse('2026-11-03 23:30:00', 'UTC'));
+    [$business, $service] = createBusinessWithService();
+    $business->update(['timezone' => 'Asia/Kathmandu']);
+
+    $this->actingAs(User::factory()->create(), 'sanctum')
+        ->postJson('/api/v1/bookings/requests', [
+            'business_id' => $business->getKey(),
+            'service_id' => $service->getKey(),
+            'requested_date' => '2026-11-03',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('requested_date');
+
+    $this->assertDatabaseCount('booking_requests', 0);
 });
 
 it('retains the selected service price and duration through availability proposal and confirmation', function (): void {

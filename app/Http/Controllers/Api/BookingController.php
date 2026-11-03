@@ -37,17 +37,27 @@ class BookingController extends Controller
         private readonly IdempotencyService $idempotency,
     ) {}
 
+    public function availableDates(Business $business): JsonResponse
+    {
+        return $this->success([
+            'business_id' => $business->getKey(),
+            'timezone' => $business->timezone,
+            'dates' => $this->availability->availableDatesFor($business),
+        ], 'Available booking dates loaded.');
+    }
+
     /**
      * GET /businesses/{business}/services/{service}/availability
      */
     public function availability(Request $request, Business $business, Service $service): JsonResponse
     {
         abort_unless($service->business_id === $business->getKey(), 404);
+        abort_unless($business->is_online && $business->status === 'active', 404);
         $data = $request->validate([
             'business_id' => ['sometimes', 'ulid', 'in:'.$business->getKey()],
             'service_price_id' => ['sometimes', 'ulid', Rule::exists('service_prices', 'id')
                 ->where('service_id', $service->getKey())->where('is_current', true)],
-            'date' => ['required', 'date', 'after_or_equal:today'],
+            'date' => ['required', 'date', 'after_or_equal:'.now($business->timezone)->toDateString()],
             'timezone' => ['nullable', 'timezone:all'],
             'days' => ['nullable', 'integer', 'between:1,14'],
         ]);
@@ -116,7 +126,8 @@ class BookingController extends Controller
             throw ApiException::forbidden('This booking request belongs to another customer.');
         }
 
-        $bookingRequest->load(['service', 'business', 'times' => fn ($q) => $q->where('is_available', true)]);
+        $bookingRequest->load(['service', 'business', 'times' => fn ($q) => $q->where('is_available', true)
+            ->where('starts_at', '>', now($bookingRequest->timezone))]);
 
         return $this->success((new BookingRequestData($bookingRequest))->toArray(), 'Booking request status loaded.');
     }

@@ -17,6 +17,55 @@ use Illuminate\Support\Collection;
 class AvailabilityService
 {
     /**
+     * Next five open dates in the business timezone; offline status excludes today only.
+     *
+     * @return Collection<int, string>
+     */
+    public function availableDatesFor(Business $business): Collection
+    {
+        if ($business->status !== 'active') {
+            return collect();
+        }
+
+        $openWeekdays = $business->hours()
+            ->where('is_closed', false)
+            ->whereColumn('opens_at', '<', 'closes_at')
+            ->pluck('weekday');
+
+        if ($openWeekdays->isEmpty()) {
+            return collect();
+        }
+
+        $candidateDate = now($business->timezone)->startOfDay();
+        if (! $business->is_online) {
+            $candidateDate->addDay();
+        }
+
+        $closures = $business->closures()->where('ends_on', '>=', $candidateDate->toDateString())->get();
+        $availableDates = collect();
+
+        while ($availableDates->count() < 5) {
+            $dateString = $candidateDate->toDateString();
+            $closure = $closures->first(fn (BusinessClosure $closure): bool => $closure->starts_on->toDateString() <= $dateString
+                && $closure->ends_on->toDateString() >= $dateString);
+
+            if ($closure !== null) {
+                $candidateDate = Carbon::parse($closure->ends_on->toDateString(), $business->timezone)->addDay();
+
+                continue;
+            }
+
+            if ($openWeekdays->contains($candidateDate->dayOfWeek)) {
+                $availableDates->push($dateString);
+            }
+
+            $candidateDate->addDay();
+        }
+
+        return $availableDates;
+    }
+
+    /**
      * Available start times for a service at a business on a given date.
      *
      * @return Collection<int, array{starts_at: string, ends_at: string}>

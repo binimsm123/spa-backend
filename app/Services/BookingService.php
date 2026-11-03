@@ -53,9 +53,9 @@ class BookingService
 
             $price = $this->resolvePrice($service, $data['service_price_id'] ?? null);
 
-            $requestedDate = Carbon::parse($data['requested_date'])->startOfDay();
+            $requestedDate = Carbon::parse($data['requested_date'], $business->timezone)->startOfDay();
 
-            if ($requestedDate->isPast()) {
+            if ($requestedDate->lt(now($business->timezone)->startOfDay())) {
                 throw ApiException::validation('The requested date cannot be in the past.', [
                     'requested_date' => ['The requested date cannot be in the past.'],
                 ]);

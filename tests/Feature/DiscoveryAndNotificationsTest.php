@@ -46,6 +46,12 @@ it('hides non-online businesses from discovery', function (): void {
         ->assertOk();
 
     expect(collect($found->json('data.items')))->toHaveCount(0);
+
+    $this->getJson('/api/v1/home?services=1&business_id='.$business->getKey())
+        ->assertOk()->assertJsonPath('data.categories', []);
+
+    $this->getJson('/api/v1/businesses/'.$business->getKey())
+        ->assertOk()->assertJsonMissingPath('data.services');
 });
 
 it('validates and redeems offers once per user, then blocks duplicates', function (): void {

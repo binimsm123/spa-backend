@@ -28,6 +28,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
     Route::get('businesses/{business}', [HomeController::class, 'businessDetail']);
 
     // Availability + booking flow
+    Route::get('businesses/{business}/available-dates', [BookingController::class, 'availableDates'])->whereUlid('business');
     Route::get('businesses/{business}/services/{service}/availability', [BookingController::class, 'availability']);
     Route::get('bookings/requests/{booking_request}', [BookingController::class, 'showRequest'])->whereUlid('booking_request');
     Route::post('bookings/requests', [BookingController::class, 'createRequest'])->middleware('throttle:booking');
