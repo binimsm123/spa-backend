@@ -305,6 +305,86 @@ it('updates business profile and online state', function (): void {
         ->and($business->staff_number)->toBe(8);
 });
 
+it('toggles business online state without a request body', function (string $role, bool $initialState, bool $expectedState, string $expectedMessage): void {
+    [$owner, $business] = createBusinessOwner();
+    $business->update(['is_online' => $initialState]);
+    BusinessUser::query()->where('business_id', $business->getKey())
+        ->where('user_id', $owner->getKey())->update(['role' => $role]);
+
+    $this->actingAs($owner, 'sanctum')
+        ->patchJson("/api/v1/business/{$business->getKey()}/toggleStatus")
+        ->assertOk()
+        ->assertExactJson([
+            'success' => true,
+            'message' => $expectedMessage,
+            'data' => null,
+        ]);
+
+    $this->assertDatabaseHas('businesses', [
+        'id' => $business->getKey(),
+        'is_online' => $expectedState,
+    ]);
+})->with([
+    'owner goes offline' => ['owner', true, false, 'Business is offline.'],
+    'owner goes online' => ['owner', false, true, 'Business is online.'],
+    'manager goes offline' => ['manager', true, false, 'Business is offline.'],
+    'manager goes online' => ['manager', false, true, 'Business is online.'],
+]);
+
+it('ignores profile fields when toggling business online state', function (): void {
+    [$owner, $business] = createBusinessOwner();
+
+    $this->actingAs($owner, 'sanctum')
+        ->patchJson("/api/v1/business/{$business->getKey()}/toggleStatus", [
+            'is_online' => true,
+            'name' => 'Unintended profile update',
+        ])
+        ->assertOk()
+        ->assertExactJson([
+            'success' => true,
+            'message' => 'Business is offline.',
+            'data' => null,
+        ]);
+
+    $this->assertDatabaseHas('businesses', [
+        'id' => $business->getKey(),
+        'is_online' => false,
+        'name' => $business->name,
+    ]);
+});
+
+it('returns 401 when toggling business online state without authentication', function (): void {
+    [$business] = createBusinessWithService();
+
+    $this->patchJson("/api/v1/business/{$business->getKey()}/toggleStatus")
+        ->assertUnauthorized();
+
+    $this->assertDatabaseHas('businesses', ['id' => $business->getKey(), 'is_online' => true]);
+});
+
+it('returns 403 when a non-member toggles business online state', function (): void {
+    [$owner, $business] = createBusinessOwner();
+    $outsider = User::factory()->create();
+
+    $this->actingAs($outsider, 'sanctum')
+        ->patchJson("/api/v1/business/{$business->getKey()}/toggleStatus")
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('businesses', ['id' => $business->getKey(), 'is_online' => true]);
+});
+
+it('returns 403 when staff toggles business online state', function (): void {
+    [$owner, $business] = createBusinessOwner();
+    BusinessUser::query()->where('business_id', $business->getKey())
+        ->where('user_id', $owner->getKey())->update(['role' => 'staff']);
+
+    $this->actingAs($owner, 'sanctum')
+        ->patchJson("/api/v1/business/{$business->getKey()}/toggleStatus")
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('businesses', ['id' => $business->getKey(), 'is_online' => true]);
+});
+
 it('updates weekly hours for a business', function (): void {
     [$owner, $business] = createBusinessOwner();
 

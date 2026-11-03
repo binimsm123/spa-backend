@@ -16,7 +16,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
     Route::get('my', [BusinessProfileController::class, 'myBusinesses']);
     Route::get('{business}', [BusinessProfileController::class, 'show'])->whereUlid('business');
     Route::patch('{business}', [BusinessProfileController::class, 'update'])->whereUlid('business');
-    Route::patch('{business}/toggleStatus', [BusinessProfileController::class, 'update'])->whereUlid('business');
+    Route::patch('{business}/toggleStatus', [BusinessProfileController::class, 'toggleStatus'])->whereUlid('business');
     // Hours + closures
     Route::put('{business}/hours', [BusinessProfileController::class, 'updateHours'])->whereUlid('business');
     Route::post('{business}/closures', [BusinessProfileController::class, 'addClosures'])->whereUlid('business');

@@ -447,6 +447,16 @@ class BusinessService
         return Business::query()->with(['locations', 'categories'])->findOrFail($id);
     }
 
+    public function toggleOnlineStatus(Business $business): Business
+    {
+        return DB::transaction(function () use ($business): Business {
+            $locked = Business::query()->lockForUpdate()->findOrFail($business->getKey());
+            $locked->update(['is_online' => ! $locked->is_online]);
+
+            return $locked;
+        });
+    }
+
     /** @param array<string, mixed> $data Validated business attributes. */
     public function create(array $data): Business
     {

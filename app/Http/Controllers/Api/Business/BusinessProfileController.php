@@ -91,6 +91,15 @@ class BusinessProfileController extends Controller
         return $this->resource(BusinessResource::make($business), 'Business updated.');
     }
 
+    public function toggleStatus(Request $request, Business $business): JsonResponse
+    {
+        $this->assertMember($request, $business, ['owner', 'manager']);
+
+        $business = $this->businesses->toggleOnlineStatus($business);
+
+        return $this->success(null, $business->is_online ? 'Business is online.' : 'Business is offline.');
+    }
+
     public function updateHours(Request $request, Business $business): JsonResponse
     {
         $this->assertMember($request, $business, ['owner', 'manager', 'staff']);
