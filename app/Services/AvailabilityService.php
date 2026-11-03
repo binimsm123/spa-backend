@@ -72,13 +72,7 @@ class AvailabilityService
      */
     public function slotsFor(Service $service, Business $business, Carbon $date, int $peopleCount = 1, ?string $servicePriceId = null): Collection
     {
-        if (! $service->is_bookable || $service->status !== 'active') {
-            throw ApiException::conflict(ErrorCode::ServiceNotBookable, 'This service cannot be booked online.');
-        }
-
-        if ($peopleCount > $service->max_people) {
-            throw ApiException::conflict(ErrorCode::CapacityExceeded, 'The requested party size exceeds service capacity.');
-        }
+        $this->assertBookable($service, $peopleCount);
 
         $weekday = (int) $date->format('w'); // 0 (Sun) .. 6 (Sat)
 
@@ -142,11 +136,21 @@ class AvailabilityService
      */
     public function isOpenAt(Business $business, Carbon $at): bool
     {
-        if ($this->isClosureDate($business, $at)) {
+        return $this->isOpenDuring($business, $at, $at);
+    }
+
+    public function isOpenDuring(Business $business, Carbon $startsAt, Carbon $endsAt): bool
+    {
+        $startsAt = $startsAt->copy()->setTimezone($business->timezone);
+        $endsAt = $endsAt->copy()->setTimezone($business->timezone);
+
+        if ($endsAt->lt($startsAt)
+            || $startsAt->toDateString() !== $endsAt->toDateString()
+            || $this->isClosureDate($business, $startsAt)) {
             return false;
         }
 
-        $weekday = (int) $at->format('w');
+        $weekday = (int) $startsAt->format('w');
 
         /** @var BusinessHour|null $hours */
         $hours = BusinessHour::query()
@@ -158,10 +162,49 @@ class AvailabilityService
             return false;
         }
 
-        $opensAt = $at->copy()->setTimeFromTimeString($hours->getRawOriginal('opens_at'));
-        $closesAt = $at->copy()->setTimeFromTimeString($hours->getRawOriginal('closes_at'));
+        $opensAt = $startsAt->copy()->setTimeFromTimeString($hours->getRawOriginal('opens_at'));
+        $closesAt = $startsAt->copy()->setTimeFromTimeString($hours->getRawOriginal('closes_at'));
 
-        return $at->betweenIncluded($opensAt, $closesAt);
+        return $startsAt->gte($opensAt) && $endsAt->lte($closesAt);
+    }
+
+    /**
+     * Validate a proposed interval inside the caller's booking transaction.
+     */
+    public function assertIntervalAvailable(Service $service, Business $business, Carbon $startsAt, Carbon $endsAt, int $peopleCount): void
+    {
+        $this->assertBookable($service, $peopleCount);
+
+        if ($startsAt->lte(now($business->timezone))) {
+            throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'The selected time has already started. Pick another time.');
+        }
+
+        if ($endsAt->lte($startsAt) || ! $this->isOpenDuring($business, $startsAt, $endsAt)) {
+            throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'The selected time is outside the business opening hours. Pick another time.');
+        }
+
+        $conflict = Booking::query()
+            ->where('business_id', $business->getKey())
+            ->whereIn('status', ['awaiting_payment', 'confirmed', 'in_progress', 'completed'])
+            ->where('starts_at', '<', $endsAt)
+            ->where('ends_at', '>', $startsAt)
+            ->lockForUpdate()
+            ->first(['id']);
+
+        if ($conflict !== null) {
+            throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'The selected time overlaps another booking. Pick another time.');
+        }
+    }
+
+    private function assertBookable(Service $service, int $peopleCount): void
+    {
+        if (! $service->is_bookable || $service->status !== 'active') {
+            throw ApiException::conflict(ErrorCode::ServiceNotBookable, 'This service cannot be booked online.');
+        }
+
+        if ($peopleCount > $service->max_people) {
+            throw ApiException::conflict(ErrorCode::CapacityExceeded, 'The requested party size exceeds service capacity.');
+        }
     }
 
     /**

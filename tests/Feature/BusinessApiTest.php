@@ -131,12 +131,19 @@ it('proposes time-only options on the requested date with the selected service d
         'requested_date' => '2026-10-30',
     ]);
 
-    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
+    $response = $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
         'starts_at' => ['10:00', '14:00'],
-    ])->assertOk()->assertExactJson([
+    ])->assertOk();
+
+    $morningTime = $bookingRequest->times()->whereTime('starts_at', '10:00')->firstOrFail();
+    $afternoonTime = $bookingRequest->times()->whereTime('starts_at', '14:00')->firstOrFail();
+    $response->assertExactJson([
         'success' => true,
         'message' => 'Times proposed.',
-        'data' => ['10:00', '14:00'],
+        'data' => [
+            ['id' => $morningTime->getKey(), 'starts_at' => '10:00'],
+            ['id' => $afternoonTime->getKey(), 'starts_at' => '14:00'],
+        ],
     ]);
 
     foreach (['10:00:00' => '11:30:00', '14:00:00' => '15:30:00'] as $start => $end) {
@@ -160,12 +167,15 @@ it('uses the request timezone when calculating proposed time durations across da
         'requested_date' => '2027-03-14', 'timezone' => 'America/New_York',
     ]);
 
-    $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
+    $response = $this->postJson('/api/v1/business/'.$business->id.'/bookings/requests/'.$bookingRequest->id.'/propose', [
         'starts_at' => ['01:30'],
-    ])->assertOk()->assertExactJson([
+    ])->assertOk();
+
+    $time = $bookingRequest->times()->firstOrFail();
+    $response->assertExactJson([
         'success' => true,
         'message' => 'Times proposed.',
-        'data' => ['01:30'],
+        'data' => [['id' => $time->getKey(), 'starts_at' => '01:30']],
     ]);
 
     $this->assertDatabaseHas('booking_request_times', [
@@ -198,6 +208,7 @@ it('rejects invalid proposed times without updating the request or notifying the
     'invalid minute' => [['starts_at' => ['10:60']], 'starts_at.0'],
     'missing leading zero' => [['starts_at' => ['9:00']], 'starts_at.0'],
     'outside opening hours' => [['starts_at' => ['10:00', '18:00']], 'starts_at'],
+    'ends after closing' => [['starts_at' => ['10:00', '16:30']], 'starts_at'],
 ]);
 
 it('rejects duplicate proposed times with a validation message and no inserts', function (): void {

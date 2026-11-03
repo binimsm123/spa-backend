@@ -14,7 +14,7 @@ class StartCheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'quote_id' => ['required', 'ulid'],
+            'quote_id' => ['sometimes', 'required', 'ulid'],
             'gateway' => ['required', 'string', 'in:esewa,khalti,mypay'],
         ];
     }

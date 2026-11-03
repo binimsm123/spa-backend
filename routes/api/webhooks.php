@@ -1,10 +1,13 @@
 <?php
 
 use App\Http\Controllers\Api\WebhookController;
+use App\Http\Middleware\HandleEsewaSuccess;
 use Illuminate\Support\Facades\Route;
 
-// Payment gateway webhooks are signature-verified and idempotent.
-// They must stay unauthenticated (gateway callbacks) but are rate limited.
-Route::middleware('throttle:payment')->prefix('webhooks')->group(function (): void {
-    Route::post('payments/{gateway}', [WebhookController::class, 'payment'])->whereIn('gateway', ['esewa', 'khalti', 'mypay']);
-});
+Route::get('esewa/success', [WebhookController::class, 'esewaSuccess'])
+    ->middleware(['throttle:payment', HandleEsewaSuccess::class])
+    ->name('payments.esewa.success');
+
+Route::get('esewa/failure', [WebhookController::class, 'esewaFailure'])
+    ->middleware('throttle:payment')
+    ->name('payments.esewa.failure');

@@ -119,7 +119,7 @@ class BookingService
                 $duration = $this->resolvePrice($service, $request->service_price_id)->durationMinutes();
                 $end = $start->copy()->addMinutes($duration);
 
-                if (! $this->availability->isOpenAt($business, $start)) {
+                if (! $this->availability->isOpenDuring($business, $start, $end)) {
                     throw ApiException::validation('A proposed time is outside opening hours.', [
                         'starts_at' => ['Proposed time '.$start->format('H:i').' is outside opening hours.'],
                     ]);
@@ -191,22 +191,19 @@ class BookingService
             }
 
             /** @var Business $business */
-            $business = $request->business;
+            $business = Business::query()->whereKey($request->business_id)->lockForUpdate()->firstOrFail();
             $service = $request->service;
 
-            // Re-check slot availability inside the transaction (race safety).
-            $slots = $this->availability->slotsFor(
+            $startsAt = Carbon::parse($time->getRawOriginal('starts_at'), $request->timezone)->setTimezone($business->timezone);
+            $endsAt = Carbon::parse($time->getRawOriginal('ends_at'), $request->timezone)->setTimezone($business->timezone);
+
+            $this->availability->assertIntervalAvailable(
                 $service,
                 $business,
-                Carbon::parse($request->requested_date),
+                $startsAt,
+                $endsAt,
                 (int) $request->people_count,
-                $request->service_price_id,
             );
-
-            $stillFree = $slots->first(fn (array $slot) => $slot['starts_at'] === $time->starts_at->format('H:i'));
-            if ($stillFree === null) {
-                throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'That time was just booked by someone else. Pick another slot.');
-            }
 
             $price = $this->resolvePrice($service, $request->service_price_id);
             $people = (int) $request->people_count;
@@ -216,9 +213,9 @@ class BookingService
                 'booking_request_id' => $request->getKey(),
                 'user_id' => $user->getKey(),
                 'business_id' => $request->business_id,
-                'appointment_date' => $time->starts_at->toDateString(),
-                'starts_at' => $time->starts_at,
-                'ends_at' => $time->ends_at,
+                'appointment_date' => $startsAt->toDateString(),
+                'starts_at' => $startsAt,
+                'ends_at' => $endsAt,
                 'timezone' => $business->timezone,
                 'status' => BookingStatus::AwaitingPayment->value,
                 'people_count' => $people,

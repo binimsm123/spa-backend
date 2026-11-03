@@ -2,41 +2,41 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\PaymentGateway;
+use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
-use App\Models\Payment;
 use App\Services\PaymentService;
-use App\Support\ApiResponse;
-use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 
 class WebhookController extends Controller
 {
-    use ApiResponse;
+    public function __construct(private readonly PaymentService $payments) {}
 
-    public function __construct(
-        private readonly PaymentService $payments,
-    ) {}
-
-    /**
-     * POST /webhooks/payments/{gateway}
-     */
-    public function payment(Request $request, string $gateway): JsonResponse
+    public function esewaSuccess(Request $request): RedirectResponse
     {
-        $gatewayEnum = PaymentGateway::tryFrom($gateway);
+        $payment = $this->payments->complete(
+            $request->attributes->get('payment'),
+            $request->attributes->get('verification'),
+        );
 
-        if ($gatewayEnum === null) {
-            return $this->success(null, 'Unknown gateway.', Response::HTTP_OK);
-        }
-
-        $signature = (string) $request->header('X-Webhook-Signature', '');
-
-        $payment = $this->payments->handleWebhook($gatewayEnum, $signature, $request->all());
-
-        return $this->success([
+        return $this->redirectToFrontend([
+            'success' => $payment->status === PaymentStatus::Succeeded ? 'true' : 'false',
+            'booking_id' => $payment->booking_id,
             'payment_id' => $payment->getKey(),
-            'status' => $payment->status->value,
-        ], 'Webhook processed.');
+        ]);
+    }
+
+    public function esewaFailure(): RedirectResponse
+    {
+        return $this->redirectToFrontend(['success' => 'false']);
+    }
+
+    /** @param array<string, string> $parameters */
+    private function redirectToFrontend(array $parameters): RedirectResponse
+    {
+        $query = http_build_query($parameters);
+        $frontendUrl = (string) config('services.frontend.url');
+
+        return redirect()->away($frontendUrl.(str_contains($frontendUrl, '?') ? '&' : '?').$query);
     }
 }

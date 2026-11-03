@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\BookingStatus;
 use App\Enums\NotificationType;
 use App\Enums\PaymentGateway;
 use App\Enums\PaymentPurpose;
@@ -10,7 +11,9 @@ use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\Tip;
 use App\Models\User;
+use App\Services\Payments\PaymentGatewayFactory;
 use App\Support\ApiException;
+use App\Support\AuditLogger;
 use App\Support\ErrorCode;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -20,6 +23,7 @@ class PaymentService
     public function __construct(
         private readonly BookingService $bookings,
         private readonly NotificationService $notifications,
+        private readonly PaymentGatewayFactory $gateways,
     ) {}
 
     /**
@@ -28,6 +32,19 @@ class PaymentService
     public function initiate(User $user, Booking $booking, int $amountMinor, PaymentGateway $gateway, PaymentPurpose $purpose): Payment
     {
         return DB::transaction(function () use ($user, $booking, $amountMinor, $gateway, $purpose): Payment {
+            $booking = Booking::query()->whereKey($booking->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($booking->user_id !== $user->getKey()) {
+                throw ApiException::forbidden('This booking belongs to another customer.');
+            }
+
+            if ($purpose === PaymentPurpose::Booking
+                && ($booking->status !== BookingStatus::AwaitingPayment || $booking->starts_at->isPast())) {
+                throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'This booking is no longer available for payment.');
+            }
+
+            $driver = $this->gateways->make($gateway);
+
             $payment = Payment::query()->create([
                 'booking_id' => $booking->getKey(),
                 'user_id' => $user->getKey(),
@@ -36,11 +53,12 @@ class PaymentService
                 'amount_minor' => $amountMinor,
                 'currency' => $booking->currency,
                 'status' => PaymentStatus::Pending->value,
-                'gateway_reference' => 'ref_'.Str::ulid(),
+                'gateway_reference' => (string) Str::ulid(),
             ]);
 
             $payment->forceFill([
-                'checkout_url' => $this->buildCheckoutUrl($payment),
+                'checkout_url' => config('services.esewa.checkout_url'),
+                'gateway_payload' => $driver->initiate($payment),
             ])->save();
 
             return $payment->refresh();
@@ -79,59 +97,34 @@ class PaymentService
         });
     }
 
-    /**
-     * Idempotent webhook handling with gateway signature verification.
-     *
-     * @param  array<string, mixed>  $payload
-     */
-    public function handleWebhook(PaymentGateway $gateway, string $signature, array $payload): Payment
+    /** @param array<string, mixed> $verification */
+    public function complete(Payment $payment, array $verification): Payment
     {
-        // Signature verification: production gateways sign callbacks; reject mismatches.
-        $expected = hash_hmac('sha256', json_encode($payload) ?: '', (string) config('spa.payments.webhook_secret'));
+        return DB::transaction(function () use ($payment, $verification): Payment {
+            $booking = Booking::query()->whereKey($payment->booking_id)->lockForUpdate()->firstOrFail();
+            $payment = Payment::query()->whereKey($payment->getKey())->lockForUpdate()->firstOrFail();
 
-        if ($signature === '' || ! hash_equals($expected, $signature)) {
-            throw new ApiException(ErrorCode::PaymentGatewayError, 'Invalid webhook signature.');
-        }
-
-        $reference = (string) ($payload['gateway_reference'] ?? '');
-        $state = (string) ($payload['status'] ?? '');
-
-        /** @var Payment|null $payment */
-        $payment = Payment::query()->where('gateway_reference', $reference)->first();
-
-        if ($payment === null) {
-            throw new ApiException(ErrorCode::NotFound, 'Unknown payment reference.');
-        }
-
-        return DB::transaction(function () use ($payment, $state): Payment {
-            // Lock the payment row so concurrent webhook deliveries are idempotent.
-            $payment = Payment::query()->whereKey($payment->getKey())->lockForUpdate()->first();
-
-            if ($payment->status === PaymentStatus::Succeeded) {
-                return $payment; // already processed
+            if ($payment->status !== PaymentStatus::Pending) {
+                return $payment;
             }
 
-            if ($state === 'succeeded') {
-                $payment->forceFill([
-                    'status' => PaymentStatus::Succeeded->value,
-                    'paid_at' => now(),
-                ])->save();
+            $payment->forceFill([
+                'status' => PaymentStatus::Succeeded,
+                'gateway_payload' => array_merge($payment->gateway_payload ?? [], ['verification' => $verification]),
+                'paid_at' => now(),
+            ])->save();
 
-                if ($payment->purpose === PaymentPurpose::Booking) {
-                    $this->bookings->markPaid($payment->booking, actor: null);
-                } elseif ($payment->purpose === PaymentPurpose::Tip) {
-                    $payment->tip?->forceFill(['status' => 'paid', 'paid_at' => now()])->save();
-
-                    $this->notifications->notify(
-                        $payment->booking->user,
-                        NotificationType::Payment,
-                        'Tip received',
-                        'Thank you for the tip!',
-                        ['booking_id' => $payment->booking_id],
-                    );
-                }
-            } elseif (in_array($state, ['failed', 'cancelled'], true)) {
-                $payment->forceFill(['status' => $state === 'failed' ? PaymentStatus::Failed->value : PaymentStatus::Cancelled->value])->save();
+            if ($payment->purpose === PaymentPurpose::Booking && $payment->amount_minor === $booking->total_minor) {
+                $this->bookings->markPaid($booking, actor: null);
+            } elseif ($payment->purpose === PaymentPurpose::Tip) {
+                $payment->tip?->forceFill(['status' => 'paid', 'paid_at' => now()])->save();
+                $this->notifications->notify(
+                    $booking->user,
+                    NotificationType::Payment,
+                    'Tip received',
+                    'Thank you for the tip!',
+                    ['booking_id' => $booking->getKey()],
+                );
             }
 
             return $payment->refresh();
@@ -154,7 +147,7 @@ class PaymentService
 
             if ($payment->purpose === PaymentPurpose::Booking) {
                 $booking = $payment->booking;
-                $booking->forceFill(['status' => \App\Enums\BookingStatus::Refunded->value])->save();
+                $booking->forceFill(['status' => BookingStatus::Refunded->value])->save();
 
                 // Release any applied offer redemption and refund its points.
                 $redemption = $booking->offerRedemption;
@@ -163,7 +156,7 @@ class PaymentService
                 }
             }
 
-            \App\Support\AuditLogger::record(
+            AuditLogger::record(
                 auth()->user(),
                 'payment.refund',
                 'payment',
@@ -175,11 +168,5 @@ class PaymentService
 
             return $payment->refresh();
         });
-    }
-
-    private function buildCheckoutUrl(Payment $payment): string
-    {
-        // Placeholder redirect URL; real gateways return their own hosted checkout.
-        return rtrim((string) config('app.url'), '/').'/payments/'.$payment->gateway_reference.'/redirect';
     }
 }

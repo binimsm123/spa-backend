@@ -17,6 +17,7 @@ use App\Models\Business;
 use App\Models\CheckoutQuote;
 use App\Models\Review;
 use App\Services\CheckoutService;
+use App\Services\Payments\PaymentGatewayFactory;
 use App\Services\PaymentService;
 use App\Support\ApiException;
 use App\Support\ApiResponse;
@@ -38,13 +39,13 @@ class CheckoutController extends Controller
     /**
      * GET /bookings/{booking}/checkout — server-owned summary.
      */
-    public function summary(Request $request, Booking $booking): JsonResponse
+    public function summary(Request $request, Booking $booking, PaymentGatewayFactory $gateways): JsonResponse
     {
         $this->assertOwned($request, $booking);
 
         $booking->load(['items', 'business.locations', 'payments']);
 
-        return $this->success((new CheckoutData($booking))->summary(), 'Checkout summary loaded.');
+        return $this->success((new CheckoutData($booking, $gateways))->summary(), 'Checkout summary loaded.');
     }
 
     /**
@@ -71,7 +72,8 @@ class CheckoutController extends Controller
     {
         $this->assertOwned($request, $booking);
 
-        $quote = CheckoutQuote::query()->findOrFail($request->validated('quote_id'));
+        $quoteId = $request->validated('quote_id');
+        $quote = $quoteId !== null ? CheckoutQuote::query()->findOrFail($quoteId) : null;
 
         $payment = $this->checkout->startCheckout(
             $request->user(),

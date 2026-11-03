@@ -2,13 +2,15 @@
 
 namespace App\Http\Dto\Api;
 
+use App\Enums\PaymentGateway;
 use App\Models\Booking;
 use App\Models\CheckoutQuote;
 use App\Models\Payment;
+use App\Services\Payments\PaymentGatewayFactory;
 
 final readonly class CheckoutData
 {
-    public function __construct(private Booking $booking) {}
+    public function __construct(private Booking $booking, private PaymentGatewayFactory $gateways) {}
 
     public function summary(): array
     {
@@ -19,7 +21,7 @@ final readonly class CheckoutData
             'booking' => ['id' => $this->booking->id, 'status' => $this->booking->status->value, 'appointment_date' => $this->booking->appointment_date?->toDateString(), 'appointment_time' => $this->booking->starts_at?->format('H:i'), 'timezone' => $this->booking->timezone, 'location' => $this->booking->business?->locations->first()?->address, 'provider' => ['id' => $this->booking->business_id, 'name' => $this->booking->business?->name], 'service' => ['id' => $item?->service_id, 'name' => $item?->service_name_snapshot, 'description' => null, 'duration_minutes' => $item?->duration_minutes_snapshot]],
             'pricing' => ['subtotal' => $major($this->booking->subtotal_minor), 'tax_label' => 'Tax (2%)', 'tax_rate' => 0.02, 'tax' => $major($this->booking->tax_minor), 'tip' => $major($this->booking->tip_minor), 'discount' => $major($this->booking->discount_minor), 'total' => $major($this->booking->total_minor), 'currency' => $this->booking->currency],
             'tip_options' => [50, 100, 200], 'promo' => null,
-            'payment_providers' => collect(['esewa', 'khalti', 'mypay'])->map(fn ($id) => ['id' => $id, 'display_name' => ucfirst($id), 'logo_url' => null, 'available' => true])->all(),
+            'payment_providers' => collect(['esewa', 'khalti', 'mypay'])->map(fn ($id) => ['id' => $id, 'display_name' => ucfirst($id), 'logo_url' => null, 'available' => $this->gateways->available(PaymentGateway::from($id))])->all(),
         ];
     }
 
@@ -32,6 +34,6 @@ final readonly class CheckoutData
 
     public static function payment(Payment $payment): array
     {
-        return ['payment_id' => $payment->id, 'booking_id' => $payment->booking_id, 'provider' => $payment->gateway?->value, 'amount' => (int) round($payment->amount_minor / 100), 'currency' => $payment->currency, 'checkout_url' => $payment->checkout_url, 'expires_in' => 900, 'status' => $payment->status?->value];
+        return ['payment_id' => $payment->id, 'booking_id' => $payment->booking_id, 'provider' => $payment->gateway?->value, 'amount' => (int) round($payment->amount_minor / 100), 'currency' => $payment->currency, 'checkout_url' => $payment->checkout_url, 'gateway_data' => array_diff_key($payment->gateway_payload ?? [], ['verification' => true]), 'expires_in' => max(0, $payment->created_at->getTimestamp() + 900 - now()->getTimestamp()), 'status' => $payment->status?->value];
     }
 }

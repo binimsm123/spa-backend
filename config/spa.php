@@ -21,8 +21,4 @@ return [
         'redemption_ttl_minutes' => env('OFFER_REDEMPTION_TTL_MINUTES', 30),
     ],
 
-    'payments' => [
-        // HMAC secret for gateway webhook signature verification.
-        'webhook_secret' => env('PAYMENT_WEBHOOK_SECRET', 'change-me-in-production'),
-    ],
 ];

@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\BookingStatus;
 use App\Enums\PaymentGateway;
 use App\Enums\PaymentPurpose;
-use App\Enums\PaymentStatus;
 use App\Models\Booking;
 use App\Models\CheckoutQuote;
 use App\Models\Offer;
@@ -12,7 +12,6 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Support\ApiException;
 use App\Support\ErrorCode;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class CheckoutService
@@ -66,12 +65,15 @@ class CheckoutService
     }
 
     /**
-     * Create a payment attempt from a valid, unexpired quote.
+     * Create a payment attempt from a valid quote, or generate a default quote.
      */
-    public function startCheckout(User $user, Booking $booking, CheckoutQuote $quote, string $gateway): Payment
+    public function startCheckout(User $user, Booking $booking, ?CheckoutQuote $quote, string $gateway): Payment
     {
         return DB::transaction(function () use ($user, $booking, $quote, $gateway): Payment {
+            $booking = Booking::query()->whereKey($booking->getKey())->lockForUpdate()->firstOrFail();
             $this->assertQuoteable($booking);
+
+            $quote ??= $this->quote($user, $booking);
 
             if ($quote->booking_id !== $booking->getKey()) {
                 throw ApiException::conflict(ErrorCode::QuoteInvalid, 'This quote does not belong to the booking.');
@@ -89,13 +91,21 @@ class CheckoutService
                 ]);
             }
 
+            $booking->forceFill([
+                'subtotal_minor' => $quote->subtotal_minor,
+                'tax_minor' => $quote->tax_minor,
+                'tip_minor' => $quote->tip_minor,
+                'discount_minor' => $quote->discount_minor,
+                'total_minor' => $quote->total_minor,
+            ])->save();
+
             return $this->payments->initiate($user, $booking, $quote->total_minor, $gatewayEnum, PaymentPurpose::Booking);
         });
     }
 
     private function assertQuoteable(Booking $booking): void
     {
-        if ($booking->status !== \App\Enums\BookingStatus::AwaitingPayment) {
+        if ($booking->status !== BookingStatus::AwaitingPayment) {
             throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'Checkout is only available for bookings awaiting payment.');
         }
     }

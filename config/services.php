@@ -42,4 +42,15 @@ return [
         'timeout' => env('SPARROW_SMS_TIMEOUT', 10),
     ],
 
+    'frontend' => [
+        'url' => env('FRONTEND_URL', 'spaapp://booking-history'),
+    ],
+
+    'esewa' => [
+        'product_code' => env('ESEWA_PRODUCT_CODE'),
+        'secret' => env('ESEWA_SECRET'),
+        'checkout_url' => env('ESEWA_CHECKOUT_URL', 'https://rc-epay.esewa.com.np/api/epay/main/v2/form'),
+        'status_url' => env('ESEWA_STATUS_URL', 'https://rc.esewa.com.np/api/epay/transaction/status/'),
+    ],
+
 ];

@@ -10,6 +10,7 @@ use App\Http\Resources\BookingRequestResource;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\BookingRequest;
+use App\Models\BookingRequestTime;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Services\BookingService;
@@ -56,7 +57,10 @@ class BusinessBookingController extends Controller
 
         $updated = app(BookingService::class)->proposeTimes($bookingRequest, $data['starts_at'], $request->user());
 
-        return $this->success($updated->times->map(fn ($time) => $time->starts_at->format('H:i'))->values()->all(), 'Times proposed.');
+        return $this->success($updated->times->map(fn (BookingRequestTime $time): array => [
+            'id' => $time->getKey(),
+            'starts_at' => $time->starts_at->format('H:i'),
+        ])->values()->all(), 'Times proposed.');
     }
 
     /**
