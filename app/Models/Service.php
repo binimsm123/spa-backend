@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -67,6 +68,11 @@ class Service extends Model
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);
+    }
+
+    public function staffMemberships(): BelongsToMany
+    {
+        return $this->belongsToMany(BusinessUser::class, 'business_user_service', 'service_id', 'business_user_id')->withTimestamps();
     }
 
     public function category(): BelongsTo

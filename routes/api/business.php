@@ -6,6 +6,13 @@ use App\Http\Controllers\Api\Business\BusinessOnboardingController;
 use App\Http\Controllers\Api\Business\BusinessProfileController;
 use App\Http\Controllers\Api\Business\BusinessServiceController;
 use App\Http\Controllers\Api\Business\BusinessStaffController;
+use App\Http\Controllers\Api\Business\BusinessStaffServiceController;
+use App\Models\Business;
+use App\Models\Service;
+use App\Models\User;
+use App\Support\ApiException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(function (): void {
@@ -43,6 +50,19 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
     Route::post('{business}/staff/invite', [BusinessStaffController::class, 'invite'])->whereUlid('business');
     Route::patch('{business}/staff/{user}', [BusinessStaffController::class, 'update'])->whereUlid('business')->whereUlid('user');
     Route::post('{business}/staff/{user}/deactivate', [BusinessStaffController::class, 'deactivate'])->whereUlid('business')->whereUlid('user');
+    Route::missing(function (Request $request, ModelNotFoundException $exception): never {
+        throw ApiException::notFound(match ($exception->getModel()) {
+            Business::class => 'Business not found.',
+            User::class => 'Staff user not found in this business.',
+            Service::class => 'Service not found in this business.',
+            default => 'Resource not found.',
+        });
+    })->group(function (): void {
+        Route::get('{business}/staff/{user}/services', [BusinessStaffServiceController::class, 'index'])->whereUlid('business')->whereUlid('user');
+        Route::post('{business}/staff/{user}/services', [BusinessStaffServiceController::class, 'store'])->whereUlid('business')->whereUlid('user');
+        Route::match(['put', 'patch'], '{business}/staff/{user}/services', [BusinessStaffServiceController::class, 'update'])->whereUlid('business')->whereUlid('user');
+        Route::delete('{business}/staff/{user}/services/{service}', [BusinessStaffServiceController::class, 'destroy'])->whereUlid('business')->whereUlid('user')->whereUlid('service');
+    });
 
     // Booking requests + bookings
     Route::get('{business}/bookings/requests', [BusinessBookingController::class, 'requests'])->whereUlid('business');
