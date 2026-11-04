@@ -2,39 +2,11 @@
 
 namespace App\Http\Requests\Business;
 
-use App\Enums\BusinessUserRole;
-use App\Support\ApiException;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StaffServiceRequest extends FormRequest
+class StaffServiceRequest extends StaffRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
-    public function authorize(): bool
-    {
-        $business = $this->route('business');
-        $membership = $this->user()->membershipFor($business);
-
-        abort_unless($membership !== null, 403, 'You do not manage this business.');
-
-        if (! $this->isMethodSafe()) {
-            abort_unless(
-                in_array($membership->role, [BusinessUserRole::Owner->value, BusinessUserRole::Manager->value], true),
-                403,
-                'Your role cannot perform this action.',
-            );
-        }
-
-        if (! $this->route('user')->businessMemberships()->where('business_id', $business->getKey())->exists()) {
-            throw ApiException::notFound('Staff user not found in this business.');
-        }
-
-        return true;
-    }
-
     /**
      * Get the validation rules that apply to the request.
      *

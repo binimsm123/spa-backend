@@ -6,9 +6,12 @@ use App\Http\Controllers\Api\Business\BusinessOnboardingController;
 use App\Http\Controllers\Api\Business\BusinessProfileController;
 use App\Http\Controllers\Api\Business\BusinessServiceController;
 use App\Http\Controllers\Api\Business\BusinessStaffController;
+use App\Http\Controllers\Api\Business\BusinessStaffHoursController;
+use App\Http\Controllers\Api\Business\BusinessStaffLeaveController;
 use App\Http\Controllers\Api\Business\BusinessStaffServiceController;
 use App\Models\Business;
 use App\Models\Service;
+use App\Models\StaffLeave;
 use App\Models\User;
 use App\Support\ApiException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -55,6 +58,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
             Business::class => 'Business not found.',
             User::class => 'Staff user not found in this business.',
             Service::class => 'Service not found in this business.',
+            StaffLeave::class => 'Staff leave not found in this business.',
             default => 'Resource not found.',
         });
     })->group(function (): void {
@@ -62,6 +66,12 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
         Route::post('{business}/staff/{user}/services', [BusinessStaffServiceController::class, 'store'])->whereUlid('business')->whereUlid('user');
         Route::match(['put', 'patch'], '{business}/staff/{user}/services', [BusinessStaffServiceController::class, 'update'])->whereUlid('business')->whereUlid('user');
         Route::delete('{business}/staff/{user}/services/{service}', [BusinessStaffServiceController::class, 'destroy'])->whereUlid('business')->whereUlid('user')->whereUlid('service');
+        Route::get('{business}/staff/{user}/hours', [BusinessStaffHoursController::class, 'show'])->whereUlid('business')->whereUlid('user');
+        Route::put('{business}/staff/{user}/hours', [BusinessStaffHoursController::class, 'update'])->whereUlid('business')->whereUlid('user');
+        Route::get('{business}/staff/{user}/leaves', [BusinessStaffLeaveController::class, 'index'])->whereUlid('business')->whereUlid('user');
+        Route::post('{business}/staff/{user}/leaves', [BusinessStaffLeaveController::class, 'store'])->whereUlid('business')->whereUlid('user');
+        Route::patch('{business}/staff/{user}/leaves/{leave}', [BusinessStaffLeaveController::class, 'update'])->whereUlid('business')->whereUlid('user')->whereUlid('leave');
+        Route::delete('{business}/staff/{user}/leaves/{leave}', [BusinessStaffLeaveController::class, 'destroy'])->whereUlid('business')->whereUlid('user')->whereUlid('leave');
     });
 
     // Booking requests + bookings

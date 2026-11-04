@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class BusinessUser extends Pivot
@@ -37,5 +38,15 @@ class BusinessUser extends Pivot
     public function services(): BelongsToMany
     {
         return $this->belongsToMany(Service::class, 'business_user_service', 'business_user_id', 'service_id')->withTimestamps();
+    }
+
+    public function hours(): HasMany
+    {
+        return $this->hasMany(StaffHour::class, 'business_user_id');
+    }
+
+    public function leaves(): HasMany
+    {
+        return $this->hasMany(StaffLeave::class, 'business_user_id');
     }
 }
