@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\ApiException;
+use App\Support\AuthenticationError;
 use App\Support\ErrorCode;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -60,7 +61,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             return response()->json([
                 'success' => false,
-                'message' => 'Authentication is required.',
+                'message' => in_array('sanctum', $e->guards(), true)
+                    ? AuthenticationError::messageFor($request)
+                    : 'Authentication is required.',
                 'code' => ErrorCode::Unauthenticated->value,
             ], 401);
         });
