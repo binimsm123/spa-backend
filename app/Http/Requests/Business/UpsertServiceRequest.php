@@ -38,6 +38,7 @@ class UpsertServiceRequest extends FormRequest
             'description' => [$modern ? $required : 'sometimes', $modern ? 'required' : 'nullable', 'string', 'max:'.($modern ? 1000 : 4000)],
             'image_path' => ['sometimes', 'nullable', 'string', 'max:255'],
             'max_people' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'required_staff_count' => ['sometimes', 'integer', 'between:1,50'],
             'is_bookable' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'string', 'in:active,inactive'],
             'price_minor' => [$modern ? 'prohibited' : $required, 'integer', 'min:0'],

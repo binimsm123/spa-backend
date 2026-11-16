@@ -17,6 +17,7 @@ final readonly class BookingData
             'status' => $this->booking->status->value,
             'provider_id' => $this->booking->business_id,
             'service_id' => $item?->service_id,
+            'required_staff_count' => $item?->required_staff_count_snapshot ?? 1,
             'appointment_date' => $this->booking->appointment_date?->toDateString(),
             'appointment_time' => $this->booking->starts_at?->format('H:i'),
             'timezone' => $this->booking->timezone,
@@ -31,6 +32,7 @@ final readonly class BookingData
     private static function major(?int $minor): int|float
     {
         $value = ((int) $minor) / 100;
+
         return fmod($value, 1.0) === 0.0 ? (int) $value : $value;
     }
 }

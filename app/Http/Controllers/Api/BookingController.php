@@ -5,10 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Dto\Api\AvailabilityData;
-use App\Http\Dto\Api\BookingData;
 use App\Http\Dto\Api\BookingRequestData;
 use App\Http\Requests\Booking\CancelBookingRequest;
-use App\Http\Requests\Booking\ConfirmBookingRequestRequest;
 use App\Http\Requests\Booking\CreateBookingRequestRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
@@ -37,13 +35,35 @@ class BookingController extends Controller
         private readonly IdempotencyService $idempotency,
     ) {}
 
-    public function availableDates(Business $business): JsonResponse
+    public function availableDates(Request $request, Business $business): JsonResponse
     {
+        $serviceId = $request->input('service_id');
+        $data = $request->validate([
+            'service_id' => ['required', 'ulid'],
+            'service_price_id' => ['sometimes', 'ulid', Rule::exists('service_prices', 'id')
+                ->where('service_id', is_string($serviceId) ? $serviceId : null)->where('is_current', true)],
+            'people_count' => ['nullable', 'integer', 'min:1', 'max:20'],
+        ], [
+            'service_id.required' => 'Please choose a service to see available booking dates.',
+            'service_id.ulid' => 'The selected service is invalid. Please choose another service.',
+            'service_price_id.ulid' => 'The selected service option is invalid. Please choose another duration.',
+            'service_price_id.exists' => 'The selected service option is no longer available. Please choose another duration.',
+            'people_count.integer' => 'Please enter a whole number of people.',
+            'people_count.min' => 'At least one person is required for a booking.',
+            'people_count.max' => 'You can book for up to 20 people per request.',
+        ]);
+        $service = $business->services()->find($data['service_id']);
+        if ($service === null) {
+            throw ApiException::notFound('The selected service is not available at this business. Please choose another service.');
+        }
+        $availability = $this->availability->availableDatesFor($business, $service, (int) ($data['people_count'] ?? 1), $data['service_price_id'] ?? null);
+
         return $this->success([
             'business_id' => $business->getKey(),
             'timezone' => $business->timezone,
-            'dates' => $this->availability->availableDatesFor($business),
-        ], 'Available booking dates loaded.');
+            'dates' => $availability['dates'],
+            'availability' => $availability['availability'],
+        ], $availability['message']);
     }
 
     /**
@@ -60,23 +80,41 @@ class BookingController extends Controller
             'date' => ['required', 'date', 'after_or_equal:'.now($business->timezone)->toDateString()],
             'timezone' => ['nullable', 'timezone:all'],
             'days' => ['nullable', 'integer', 'between:1,14'],
+            'people_count' => ['nullable', 'integer', 'min:1', 'max:20'],
         ]);
 
-        $people = (int) $request->query('people_count', 1);
+        $people = (int) ($data['people_count'] ?? 1);
         $days = (int) ($data['days'] ?? 1);
         $timezone = $data['timezone'] ?? $business->timezone;
 
         $dates = collect(range(0, $days - 1))
             ->map(fn (int $i) => Carbon::parse($data['date'], $timezone)->startOfDay()->addDays($i));
 
-        $availability = $dates->map(function (Carbon $date) use ($service, $business, $people, $data) {
-            $slots = $this->availability->slotsFor($service, $business, $date, $people, $data['service_price_id'] ?? null);
+        $businessDays = [];
+        $availability = $dates->map(function (Carbon $date) use ($service, $business, $people, $data, $timezone, &$businessDays): array {
+            $localDate = $date->copy()->setTimezone($business->timezone)->startOfDay();
+            $lastDate = $date->copy()->endOfDay()->setTimezone($business->timezone)->startOfDay();
+            $slots = collect();
+            $isClosed = true;
 
-            return [
-                'date' => $date->toDateString(),
-                'is_closed' => $slots->isEmpty() && $this->availability->isClosureDate($business, $date),
-                'slots' => $slots->values(),
-            ];
+            while ($localDate->lte($lastDate)) {
+                $key = $localDate->toDateString();
+                $businessDays[$key] ??= [
+                    'slots' => $this->availability->slotsFor($service, $business, $localDate, $people, $data['service_price_id'] ?? null),
+                    'is_closed' => $this->availability->isClosureDate($business, $localDate),
+                ];
+                $isClosed = $isClosed && $businessDays[$key]['is_closed'];
+                foreach ($businessDays[$key]['slots'] as $slot) {
+                    $start = $localDate->copy()->setTimeFromTimeString($slot['starts_at'])->setTimezone($timezone);
+                    $end = $localDate->copy()->setTimeFromTimeString($slot['ends_at'])->setTimezone($timezone);
+                    if ($start->toDateString() === $date->toDateString()) {
+                        $slots->push(['starts_at' => $start->format('H:i'), 'ends_at' => $end->format('H:i')]);
+                    }
+                }
+                $localDate->addDay();
+            }
+
+            return ['date' => $date->toDateString(), 'is_closed' => $slots->isEmpty() && $isClosed, 'slots' => $slots->sortBy('starts_at')->values()];
         });
 
         $price = $service->prices()
@@ -109,7 +147,7 @@ class BookingController extends Controller
 
                 return [
                     Response::HTTP_ACCEPTED,
-                    array_merge((new BookingRequestData($bookingRequest->load(['service', 'business'])))->toArray(), ['poll_after' => 2]),
+                    (new BookingRequestData($bookingRequest->load(['service', 'servicePrice', 'business', 'booking'])))->toArray(),
                 ];
             },
         );
@@ -126,24 +164,9 @@ class BookingController extends Controller
             throw ApiException::forbidden('This booking request belongs to another customer.');
         }
 
-        $bookingRequest->load(['service', 'business', 'times' => fn ($q) => $q->where('is_available', true)
-            ->where('starts_at', '>', now($bookingRequest->timezone))]);
+        $bookingRequest->load(['service', 'servicePrice', 'business', 'booking']);
 
         return $this->success((new BookingRequestData($bookingRequest))->toArray(), 'Booking request status loaded.');
-    }
-
-    /**
-     * POST /bookings/requests/{bookingRequest}/confirm
-     */
-    public function confirmRequest(ConfirmBookingRequestRequest $request, BookingRequest $bookingRequest): JsonResponse
-    {
-        $booking = $this->bookings->confirmRequest(
-            $request->user(),
-            $bookingRequest,
-            $request->validated('time_id'),
-        );
-
-        return $this->success((new BookingData($booking->load(['items', 'business.locations'])))->toArray(), 'Booking created.', Response::HTTP_CREATED);
     }
 
     /**
@@ -170,7 +193,7 @@ class BookingController extends Controller
     {
         abort_unless($booking->user_id === $request->user()->getKey(), 403);
 
-        $booking->load(['items', 'business.locations', 'payments', 'review', 'assignedStaff']);
+        $booking->load(['items', 'business.locations', 'payments', 'review', 'assignedStaff', 'assignedStaffMembers']);
 
         return $this->resource(BookingResource::make($booking));
     }

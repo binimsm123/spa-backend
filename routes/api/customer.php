@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Support\ApiException;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
@@ -28,11 +29,13 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
     Route::get('businesses/{business}', [HomeController::class, 'businessDetail']);
 
     // Availability + booking flow
-    Route::get('businesses/{business}/available-dates', [BookingController::class, 'availableDates'])->whereUlid('business');
+    Route::get('businesses/{business}/available-dates', [BookingController::class, 'availableDates'])->whereUlid('business')
+        ->missing(function (): never {
+            throw ApiException::notFound('This business could not be found. Please choose another business.');
+        });
     Route::get('businesses/{business}/services/{service}/availability', [BookingController::class, 'availability']);
     Route::get('bookings/requests/{booking_request}', [BookingController::class, 'showRequest'])->whereUlid('booking_request');
     Route::post('bookings/requests', [BookingController::class, 'createRequest'])->middleware('throttle:booking');
-    Route::post('bookings/requests/{booking_request}/confirm', [BookingController::class, 'confirmRequest'])->whereUlid('booking_request')->middleware('throttle:booking');
     Route::get('bookings', [BookingController::class, 'index']);
     Route::get('bookings/{booking}', [BookingController::class, 'show'])->whereUlid('booking');
     Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->whereUlid('booking');

@@ -10,7 +10,7 @@ class StaffHour extends Model
 {
     use HasFactory, HasUlid;
 
-    protected $fillable = ['business_user_id', 'weekday', 'opens_at', 'closes_at', 'is_closed'];
+    protected $fillable = ['business_user_id', 'weekday', 'opens_at', 'closes_at', 'breaks', 'is_closed'];
 
     protected function casts(): array
     {
@@ -19,6 +19,7 @@ class StaffHour extends Model
             'opens_at' => 'datetime:H:i',
             'closes_at' => 'datetime:H:i',
             'is_closed' => 'boolean',
+            'breaks' => 'array',
         ];
     }
 

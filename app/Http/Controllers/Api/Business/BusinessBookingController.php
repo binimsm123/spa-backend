@@ -5,14 +5,13 @@ namespace App\Http\Controllers\Api\Business;
 use App\Enums\BookingStatus;
 use App\Enums\BusinessUserRole;
 use App\Http\Controllers\Controller;
+use App\Http\Dto\Api\BookingData;
 use App\Http\Requests\Booking\UpdateBookingStatusRequest;
 use App\Http\Resources\BookingRequestResource;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\BookingRequest;
-use App\Models\BookingRequestTime;
 use App\Models\Business;
-use App\Models\BusinessUser;
 use App\Services\BookingService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -33,7 +32,7 @@ class BusinessBookingController extends Controller
 
         $query = BookingRequest::query()
             ->where('business_id', $business->getKey())
-            ->with(['service', 'servicePrice', 'user', 'times'])
+            ->with(['service', 'servicePrice', 'user', 'booking'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->orderByDesc('created_at');
 
@@ -41,41 +40,27 @@ class BusinessBookingController extends Controller
     }
 
     /**
-     * POST /business/{business}/bookings/requests/{bookingRequest}/propose
+     * POST /business/{business}/bookings/requests/{bookingRequest}/reject
      */
-    public function propose(Request $request, Business $business, BookingRequest $bookingRequest): JsonResponse
-    {
-        $this->assertMember($request, $business);
-        abort_unless($bookingRequest->business_id === $business->getKey(), 404);
-
-        $data = $request->validate([
-            'starts_at' => ['required', 'array', 'min:1'],
-            'starts_at.*' => ['required', 'date_format:H:i', 'distinct'],
-        ], [
-            'starts_at.*.distinct' => 'Each proposed time must be unique.',
-        ]);
-
-        $updated = app(BookingService::class)->proposeTimes($bookingRequest, $data['starts_at'], $request->user());
-
-        return $this->success($updated->times->map(fn (BookingRequestTime $time): array => [
-            'id' => $time->getKey(),
-            'starts_at' => $time->starts_at->format('H:i'),
-        ])->values()->all(), 'Times proposed.');
-    }
-
-    /**
-     * POST /business/{business}/bookings/requests/{bookingRequest}/decline
-     */
-    public function decline(Request $request, Business $business, BookingRequest $bookingRequest): JsonResponse
+    public function reject(Request $request, Business $business, BookingRequest $bookingRequest): JsonResponse
     {
         $this->assertMember($request, $business);
         abort_unless($bookingRequest->business_id === $business->getKey(), 404);
 
         $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
 
-        $updated = app(BookingService::class)->declineRequest($bookingRequest, $data['reason'] ?? null);
+        $updated = app(BookingService::class)->rejectRequest($request->user(), $bookingRequest, $data['reason'] ?? null);
 
-        return $this->resource(BookingRequestResource::make($updated->load(['service', 'servicePrice'])), 'Request declined.');
+        return $this->resource(BookingRequestResource::make($updated->load(['service', 'servicePrice'])), 'Booking request rejected.');
+    }
+
+    public function approve(Request $request, Business $business, BookingRequest $bookingRequest): JsonResponse
+    {
+        $this->assertMember($request, $business);
+        abort_unless($bookingRequest->business_id === $business->getKey(), 404);
+        $booking = app(BookingService::class)->approveRequest($request->user(), $bookingRequest);
+
+        return $this->created((new BookingData($booking->load(['items', 'business.locations'])))->toArray(), 'Booking request approved.');
     }
 
     /**
@@ -89,7 +74,7 @@ class BusinessBookingController extends Controller
 
         $query = Booking::query()
             ->where('business_id', $business->getKey())
-            ->with(['items', 'user', 'business.locations', 'payments', 'assignedStaff'])
+            ->with(['items', 'user', 'business.locations', 'payments', 'assignedStaff', 'assignedStaffMembers'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('date'), fn ($q, $date) => $q->whereDate('appointment_date', $date))
             ->when($request->query('payment_status'), fn ($q, $ps) => $q->whereHas('payments', fn ($p) => $p->where('status', $ps)))
@@ -108,31 +93,6 @@ class BusinessBookingController extends Controller
 
         $service = app(BookingService::class);
         $status = BookingStatus::from($request->validated('status'));
-
-        if ($request->filled('staff_user_id')) {
-            $staffId = $request->validated('staff_user_id');
-
-            $isMember = BusinessUser::query()
-                ->where('business_id', $business->getKey())
-                ->where('user_id', $staffId)
-                ->where('is_active', true)
-                ->exists();
-
-            abort_unless($isMember, 422, 'The assigned staff member must belong to this business.');
-
-            // Prevent overlapping appointments for the same staff member.
-            $conflict = Booking::query()
-                ->where('assigned_staff_user_id', $staffId)
-                ->whereIn('status', ['confirmed', 'in_progress'])
-                ->where('starts_at', '<', $booking->ends_at)
-                ->where('ends_at', '>', $booking->starts_at)
-                ->whereKeyNot($booking->getKey())
-                ->exists();
-
-            abort_if($conflict, 409, 'The staff member already has an appointment in that time window.');
-
-            $booking->forceFill(['assigned_staff_user_id' => $staffId])->save();
-        }
 
         $updated = $service->transitionStatus($booking, $status, $request->user(), $request->validated('note'));
 

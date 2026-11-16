@@ -80,12 +80,13 @@ class AdminCatalogController extends Controller
             'is_bookable' => ['sometimes', 'boolean'],
             'status' => ['sometimes', 'in:active,inactive'],
             'max_people' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'required_staff_count' => ['sometimes', 'integer', 'between:1,50'],
         ]);
 
-        $before = $service->only(['is_bookable', 'status', 'max_people']);
+        $before = $service->only(['is_bookable', 'status', 'max_people', 'required_staff_count']);
         $service->fill($data)->save();
 
-        AuditLogger::record($request->user(), 'service.updated', 'service', $service->getKey(), $before, $service->only(['is_bookable', 'status', 'max_people']));
+        AuditLogger::record($request->user(), 'service.updated', 'service', $service->getKey(), $before, $service->only(['is_bookable', 'status', 'max_people', 'required_staff_count']));
 
         return $this->resource(ServiceResource::make($service->refresh()->load('currentPrices')), 'Service updated.');
     }

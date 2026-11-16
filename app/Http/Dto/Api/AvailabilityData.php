@@ -15,6 +15,7 @@ final readonly class AvailabilityData
             'service' => [
                 'id' => $this->service->id,
                 'name' => $this->service->name,
+                'required_staff_count' => $this->service->required_staff_count,
                 'description' => $this->service->description,
                 'image_url' => $this->service->image_path ? url('storage/'.$this->service->image_path) : null,
                 'price' => (int) (($this->service->price ?? 0) / 100),

@@ -21,7 +21,7 @@ it('seeds a connected spa dataset and can rerun without duplicating it', functio
     $this->assertDatabaseCount('business_closures', 6);
     $this->assertDatabaseCount('offers', 6);
     $this->assertDatabaseCount('booking_requests', 24);
-    $this->assertDatabaseCount('booking_request_times', 24);
+    $this->assertDatabaseCount('booking_request_times', 0);
     $this->assertDatabaseCount('bookings', 20);
     $this->assertDatabaseCount('booking_items', 20);
     $this->assertDatabaseCount('booking_status_history', 20);

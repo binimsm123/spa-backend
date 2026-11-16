@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\BookingStatus;
 use App\Models\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -75,6 +76,11 @@ class Booking extends Model
     public function assignedStaff(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_staff_user_id');
+    }
+
+    public function assignedStaffMembers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'booking_staff')->withTimestamps();
     }
 
     public function items(): HasMany

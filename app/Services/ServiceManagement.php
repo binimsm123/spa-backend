@@ -56,7 +56,7 @@ class ServiceManagement
             }
         }
 
-        $record->fill(Arr::only($data, ['category_id', 'name', 'description', 'image_path', 'max_people', 'is_bookable', 'status']));
+        $record->fill(Arr::only($data, ['category_id', 'name', 'description', 'image_path', 'max_people', 'required_staff_count', 'is_bookable', 'status']));
 
         if (! $record->exists) {
             $record->slug = Str::slug($data['name']).'-'.Str::lower(Str::random(8));

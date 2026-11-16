@@ -24,6 +24,8 @@ class BookingResource extends JsonResource
             'ends_at' => $this->ends_at?->toIso8601String(),
             'timezone' => $this->timezone,
             'assigned_staff' => new UserResource($this->whenLoaded('assignedStaff')),
+            'assigned_staff_members' => UserResource::collection($this->whenLoaded('assignedStaffMembers')),
+            'required_staff_count' => $this->whenLoaded('items', fn () => $this->items->first()?->required_staff_count_snapshot ?? 1),
             'pricing' => $this->whenLoaded('items', fn () => [
                 'subtotal_minor' => (int) $this->subtotal_minor,
                 'tax_minor' => (int) $this->tax_minor,

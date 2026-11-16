@@ -175,17 +175,11 @@ class DemoDataSeeder extends Seeder
                 'user_id' => $customer->id, 'business_id' => $business->id, 'service_id' => $service->id,
             ], ['idempotency_key' => (string) Str::ulid(), 'requested_date' => $start->toDateString(), 'expires_at' => $start]);
             $request->update([
-                'requested_date' => $start->toDateString(), 'timezone' => 'Asia/Kathmandu', 'people_count' => 1,
-                'status' => $status === 'pending' ? 'times_proposed' : ($status === 'cancelled' ? 'cancelled' : ($paid ? 'confirmed' : 'accepted')),
+                'requested_date' => $start->toDateString(), 'requested_time' => $start->format('H:i'), 'service_price_id' => $price->id, 'timezone' => 'Asia/Kathmandu', 'people_count' => 1,
+                'status' => $status === 'pending' ? 'pending' : ($status === 'cancelled' ? 'cancelled' : 'approved'),
                 'expires_at' => $start, 'accepted_at' => $status === 'pending' ? null : $start->copy()->subDay(),
                 'confirmed_at' => $paid ? $start->copy()->subDay() : null,
             ]);
-            $time = $request->times()->first();
-            if ($time === null) {
-                $request->times()->create(['starts_at' => $start, 'ends_at' => $end, 'is_available' => true]);
-            } else {
-                $time->update(['starts_at' => $start, 'ends_at' => $end, 'is_available' => true]);
-            }
             if ($status === 'pending') {
                 continue;
             }

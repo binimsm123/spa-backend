@@ -16,6 +16,7 @@ class Service extends Model
 
     protected $attributes = [
         'max_people' => 1,
+        'required_staff_count' => 1,
         'is_bookable' => true,
         'status' => 'active',
     ];
@@ -29,6 +30,7 @@ class Service extends Model
         'description',
         'image_path',
         'max_people',
+        'required_staff_count',
         'is_bookable',
         'status',
     ];
@@ -62,6 +64,7 @@ class Service extends Model
     {
         return [
             'is_bookable' => 'boolean',
+            'required_staff_count' => 'integer',
         ];
     }
 

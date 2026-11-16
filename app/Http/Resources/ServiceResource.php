@@ -21,6 +21,7 @@ class ServiceResource extends JsonResource
             'category' => new CategoryResource($this->whenLoaded('category')),
             'service_prices' => ServicePriceResource::collection($this->whenLoaded('currentPrices')),
             'max_people' => (int) $this->max_people,
+            'required_staff_count' => (int) $this->required_staff_count,
             'is_bookable' => (bool) $this->is_bookable,
             'status' => $this->status,
             'price_minor' => $this->when(isset($this->price), fn () => (int) $this->price),

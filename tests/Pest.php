@@ -1,11 +1,14 @@
 <?php
 
+use App\Models\Booking;
 use App\Models\Business;
 use App\Models\BusinessHour;
+use App\Models\BusinessUser;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -148,4 +151,65 @@ if (! function_exists('createBusinessWithService')) {
 
         return [$business, $service, $price];
     }
+}
+
+/** @return array{Business, Service, ServicePrice} */
+function createBookableBusinessWithService(array $overrides = []): array
+{
+    [$business, $service, $price] = createBusinessWithService($overrides);
+    $membership = BusinessUser::query()->create([
+        'business_id' => $business->id, 'user_id' => User::factory()->create()->id, 'role' => 'staff', 'is_active' => true,
+    ]);
+    $membership->services()->attach($service);
+    foreach (range(0, 6) as $weekday) {
+        $membership->hours()->create(['weekday' => $weekday, 'opens_at' => '00:00', 'closes_at' => '23:59', 'is_closed' => false]);
+    }
+
+    return [$business, $service, $price];
+}
+
+/** @return array{Business, Service, BusinessUser, string} */
+function automaticAvailabilityFixture(): array
+{
+    test()->travelTo(Carbon::parse('2026-11-13 08:00', 'UTC'));
+    [$business, $service] = createBookableBusinessWithService();
+    $membership = $service->staffMemberships()->firstOrFail();
+    $membership->hours->each->update(['opens_at' => '10:00', 'closes_at' => '16:00', 'breaks' => [['name' => 'Break', 'starts_at' => '12:00', 'ends_at' => '13:00']]]);
+    test()->actingAs(User::factory()->create(), 'sanctum');
+
+    return [$business, $service, $membership, "/api/v1/businesses/{$business->id}/services/{$service->id}/availability?date=2026-11-14"];
+}
+
+function automaticBooking(Business $business, ?string $staffId, string $start = '10:00', string $end = '11:00', string $status = 'confirmed'): Booking
+{
+    return Booking::query()->create([
+        'business_id' => $business->id, 'user_id' => User::factory()->create()->id, 'assigned_staff_user_id' => $staffId,
+        'appointment_date' => '2026-11-14', 'starts_at' => '2026-11-14 '.$start, 'ends_at' => '2026-11-14 '.$end,
+        'timezone' => $business->timezone, 'status' => $status, 'subtotal_minor' => 500000, 'total_minor' => 500000, 'currency' => 'NPR',
+    ]);
+}
+
+function addBookingStaff(Business $business, Service $service): BusinessUser
+{
+    $membership = BusinessUser::query()->create([
+        'business_id' => $business->id, 'user_id' => User::factory()->create()->id, 'role' => 'staff', 'is_active' => true,
+    ]);
+    $membership->services()->attach($service);
+    foreach (range(0, 6) as $weekday) {
+        $membership->hours()->create(['weekday' => $weekday, 'opens_at' => '09:00', 'closes_at' => '17:00', 'is_closed' => false]);
+    }
+
+    return $membership;
+}
+
+function bookingApprover(Business $business): User
+{
+    $owner = $business->members()->wherePivot('role', 'owner')->wherePivot('is_active', true)->first();
+    if ($owner !== null) {
+        return $owner;
+    }
+    $owner = User::factory()->create();
+    BusinessUser::query()->create(['business_id' => $business->id, 'user_id' => $owner->id, 'role' => 'owner', 'is_active' => true]);
+
+    return $owner;
 }

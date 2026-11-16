@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\Business\BusinessBookingController;
+use App\Http\Controllers\Api\Business\BusinessBookingStaffController;
 use App\Http\Controllers\Api\Business\BusinessOfferController;
 use App\Http\Controllers\Api\Business\BusinessOnboardingController;
 use App\Http\Controllers\Api\Business\BusinessProfileController;
 use App\Http\Controllers\Api\Business\BusinessServiceController;
+use App\Http\Controllers\Api\Business\BusinessStaffBreakController;
 use App\Http\Controllers\Api\Business\BusinessStaffController;
 use App\Http\Controllers\Api\Business\BusinessStaffHoursController;
 use App\Http\Controllers\Api\Business\BusinessStaffLeaveController;
@@ -66,6 +68,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
         Route::post('{business}/staff/{user}/services', [BusinessStaffServiceController::class, 'store'])->whereUlid('business')->whereUlid('user');
         Route::match(['put', 'patch'], '{business}/staff/{user}/services', [BusinessStaffServiceController::class, 'update'])->whereUlid('business')->whereUlid('user');
         Route::delete('{business}/staff/{user}/services/{service}', [BusinessStaffServiceController::class, 'destroy'])->whereUlid('business')->whereUlid('user')->whereUlid('service');
+        Route::get('{business}/staff/{user}/breaks', [BusinessStaffBreakController::class, 'index'])->whereUlid('business')->whereUlid('user');
+        Route::post('{business}/staff/{user}/breaks', [BusinessStaffBreakController::class, 'store'])->whereUlid('business')->whereUlid('user');
+        Route::put('{business}/staff/{user}/breaks', [BusinessStaffBreakController::class, 'update'])->whereUlid('business')->whereUlid('user');
         Route::get('{business}/staff/{user}/hours', [BusinessStaffHoursController::class, 'show'])->whereUlid('business')->whereUlid('user');
         Route::put('{business}/staff/{user}/hours', [BusinessStaffHoursController::class, 'update'])->whereUlid('business')->whereUlid('user');
         Route::get('{business}/staff/{user}/leaves', [BusinessStaffLeaveController::class, 'index'])->whereUlid('business')->whereUlid('user');
@@ -76,9 +81,11 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('business')->group(f
 
     // Booking requests + bookings
     Route::get('{business}/bookings/requests', [BusinessBookingController::class, 'requests'])->whereUlid('business');
-    Route::post('{business}/bookings/requests/{booking_request}/propose', [BusinessBookingController::class, 'propose'])->whereUlid('business')->whereUlid('booking_request');
-    Route::post('{business}/bookings/requests/{booking_request}/decline', [BusinessBookingController::class, 'decline'])->whereUlid('business')->whereUlid('booking_request');
+    Route::post('{business}/bookings/requests/{booking_request}/approve', [BusinessBookingController::class, 'approve'])->whereUlid('business')->whereUlid('booking_request');
+    Route::post('{business}/bookings/requests/{booking_request}/reject', [BusinessBookingController::class, 'reject'])->whereUlid('business')->whereUlid('booking_request');
     Route::get('{business}/bookings', [BusinessBookingController::class, 'index'])->whereUlid('business');
+    Route::get('{business}/bookings/{booking}/staff-suggestions', [BusinessBookingStaffController::class, 'suggestions'])->whereUlid('business')->whereUlid('booking');
+    Route::put('{business}/bookings/{booking}/staff', [BusinessBookingStaffController::class, 'update'])->whereUlid('business')->whereUlid('booking');
     Route::patch('{business}/bookings/{booking}/status', [BusinessBookingController::class, 'updateStatus'])->whereUlid('business')->whereUlid('booking');
 
     // Offers

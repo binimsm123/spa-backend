@@ -125,6 +125,7 @@ class BusinessCatalogResource extends BusinessResource
                 'price' => (int) ($price?->price_minor ?? 0), 'currency' => $price?->currency ?? 'NPR',
                 'service_prices' => ServicePriceResource::collection($service->currentPrices)->resolve(),
                 'bookable' => (bool) $service->is_bookable,
+                'required_staff_count' => $service->required_staff_count,
             ];
         })->values()->all();
     }

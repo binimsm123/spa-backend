@@ -15,6 +15,7 @@ class BookingItem extends Model
         'service_name_snapshot',
         'duration_minutes_snapshot',
         'max_people_snapshot',
+        'required_staff_count_snapshot',
         'unit_price_minor',
         'currency',
         'quantity',
@@ -25,6 +26,7 @@ class BookingItem extends Model
         return [
             'duration_minutes_snapshot' => 'integer',
             'max_people_snapshot' => 'integer',
+            'required_staff_count_snapshot' => 'integer',
             'unit_price_minor' => 'integer',
             'quantity' => 'integer',
         ];

@@ -8,7 +8,6 @@ use App\Enums\NotificationType;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\BookingRequest;
-use App\Models\BookingRequestTime;
 use App\Models\Business;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -29,11 +28,11 @@ class BookingService
     ) {}
 
     // -------------------------------------------------------------------------
-    // Customer flow: request -> times proposed -> confirmed -> booking
+    // Customer selects a slot; the business approves or rejects the request.
     // -------------------------------------------------------------------------
 
     /**
-     * Step 1: customer requests a service date. Business supplies times later.
+     * Create a pending business approval request for a selected service interval.
      */
     public function createRequest(User $user, array $data): BookingRequest
     {
@@ -66,6 +65,11 @@ class BookingService
                 throw ApiException::conflict(ErrorCode::CapacityExceeded, 'The requested party size exceeds service capacity.');
             }
 
+            $requestedTime = $data['requested_time'];
+            if (! $this->availability->slotsFor($service, $business, $requestedDate, $peopleCount, $price->id)->contains('starts_at', $requestedTime)) {
+                throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'The selected time is no longer available. Please choose another time.');
+            }
+
             /** @var BookingRequest $request */
             $request = $user->bookingRequests()->create([
                 'business_id' => $business->getKey(),
@@ -73,7 +77,8 @@ class BookingService
                 'service_price_id' => $price->getKey(),
                 'people_count' => $peopleCount,
                 'requested_date' => $requestedDate,
-                'timezone' => $data['timezone'] ?? $business->timezone,
+                'requested_time' => $requestedTime,
+                'timezone' => $business->timezone,
                 'status' => BookingRequestStatus::Pending->value,
                 'idempotency_key' => (string) Str::ulid(),
                 'expires_at' => now()->addHours((int) config('spa.booking.request_ttl_hours', 24)),
@@ -83,119 +88,55 @@ class BookingService
                 $user,
                 NotificationType::Booking,
                 'Booking request sent',
-                'We sent your request to '.$business->name.'. We will notify you when times are proposed.',
+                'Your appointment request is awaiting approval from '.$business->name.'.',
                 ['booking_request_id' => $request->getKey()],
             );
 
-            return $request->refresh();
+            foreach ($business->members()->wherePivot('is_active', true)->wherePivotIn('role', ['owner', 'manager'])->where('users.is_active', true)->get() as $member) {
+                $this->notifications->notify($member, NotificationType::Booking, 'New booking request',
+                    $service->name.' requested for '.$requestedDate->toDateString().' at '.$requestedTime.'.',
+                    ['booking_request_id' => $request->id]);
+            }
+
+            return $request;
         });
     }
 
     /**
-     * Step 2: business proposes HH:mm times on the requested date in the request timezone.
-     *
-     * @param  array<int, string>  $startsAtList
+     * Approve the requested interval and reserve staffing capacity without assigning staff.
      */
-    public function proposeTimes(BookingRequest $request, array $startsAtList, User $actor): BookingRequest
+    public function approveRequest(User $actor, BookingRequest $request): Booking
     {
-        return DB::transaction(function () use ($request, $startsAtList): BookingRequest {
-            $request = BookingRequest::whereKey($request->getKey())->lockForUpdate()->firstOrFail();
-
-            if ($request->status !== BookingRequestStatus::Pending) {
-                throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'Times can only be proposed for pending requests.');
-            }
-
-            if ($request->expires_at->isPast()) {
-                throw ApiException::conflict(ErrorCode::BookingRequestExpired, 'This booking request has expired.');
-            }
-
-            $service = $request->service;
-            /** @var Business $business */
-            $business = $request->business;
-
-            $rows = [];
-            foreach ($startsAtList as $startsAt) {
-                $start = Carbon::createFromFormat('!Y-m-d H:i', $request->requested_date->toDateString().' '.$startsAt, $request->timezone);
-                $duration = $this->resolvePrice($service, $request->service_price_id)->durationMinutes();
-                $end = $start->copy()->addMinutes($duration);
-
-                if (! $this->availability->isOpenDuring($business, $start, $end)) {
-                    throw ApiException::validation('A proposed time is outside opening hours.', [
-                        'starts_at' => ['Proposed time '.$start->format('H:i').' is outside opening hours.'],
-                    ]);
-                }
-
-                $rows[] = [
-                    'booking_request_id' => $request->getKey(),
-                    'starts_at' => $start,
-                    'ends_at' => $end,
-                    'is_available' => true,
-                ];
-            }
-
-            if ($request->times()->whereIn('starts_at', array_column($rows, 'starts_at'))->exists()) {
-                throw ApiException::validation('One or more proposed times already exist for this booking request.', [
-                    'starts_at' => ['Choose times that have not already been proposed.'],
-                ]);
-            }
-
-            $request->times()->createMany($rows);
-
-            $request->forceFill(['status' => BookingRequestStatus::TimesProposed->value])->save();
-
-            $this->notifications->notify(
-                $request->user,
-                NotificationType::Booking,
-                'Times available',
-                $request->business->name.' proposed times for your request.',
-                ['booking_request_id' => $request->getKey()],
-            );
-
-            return $request->refresh();
-        });
-    }
-
-    /**
-     * Step 3: customer confirms one proposed time -> creates awaiting-payment booking.
-     */
-    public function confirmRequest(User $user, BookingRequest $request, string $timeId): Booking
-    {
-        return DB::transaction(function () use ($user, $request, $timeId): Booking {
+        return DB::transaction(function () use ($actor, $request): Booking {
             $request = BookingRequest::query()->whereKey($request->getKey())->lockForUpdate()->firstOrFail();
 
-            if ($request->user_id !== $user->getKey()) {
-                throw ApiException::forbidden('This booking request belongs to another customer.');
+            if (! $actor->belongsToBusiness($request->business)) {
+                throw ApiException::forbidden('You do not manage this business.');
             }
 
             if ($request->booking()->exists()) {
                 throw ApiException::conflict(ErrorCode::BookingRequestAlreadyBooked, 'This request already has a booking. Please view your existing booking.');
             }
 
-            if ($request->status !== BookingRequestStatus::TimesProposed) {
-                throw ApiException::conflict(ErrorCode::BookingRequestNotAccepted, 'Confirm the request only after times are proposed and available.');
+            if ($request->status !== BookingRequestStatus::Pending) {
+                throw ApiException::conflict(ErrorCode::BookingRequestNotAccepted, 'Only pending booking requests can be approved.');
             }
 
             if ($request->expires_at->isPast()) {
                 throw ApiException::conflict(ErrorCode::BookingRequestExpired, 'This booking request has expired.');
             }
 
-            /** @var BookingRequestTime|null $time */
-            $time = $request->times()
-                ->whereKey($timeId)
-                ->where('is_available', true)
-                ->lockForUpdate()
-                ->first();
-
-            if ($time === null) {
-                throw ApiException::conflict(ErrorCode::BookingRequestNotAccepted, 'The selected time is no longer available.');
-            }
-
-            /** @var Business $business */
             $business = Business::query()->whereKey($request->business_id)->lockForUpdate()->firstOrFail();
-            $service = $request->service;
-
-            $startsAt = Carbon::parse($time->getRawOriginal('starts_at'), $request->timezone)->setTimezone($business->timezone);
-            $endsAt = Carbon::parse($time->getRawOriginal('ends_at'), $request->timezone)->setTimezone($business->timezone);
+            $service = Service::query()->whereKey($request->service_id)->lockForUpdate()->firstOrFail();
+            if ($service->business_id !== $business->id) {
+                throw ApiException::notFound('The selected service is not available at this business.');
+            }
+            if ($request->requested_time === null) {
+                throw ApiException::conflict(ErrorCode::BookingRequestNotAccepted, 'This request has no selected time. Please ask the customer to submit a new request.');
+            }
+            $price = $this->resolvePrice($service, $request->service_price_id);
+            $startsAt = Carbon::parse($request->requested_date->toDateString().' '.$request->requested_time->format('H:i'), $request->timezone);
+            $endsAt = $startsAt->copy()->addMinutes($price->durationMinutes());
 
             $this->availability->assertIntervalAvailable(
                 $service,
@@ -205,13 +146,12 @@ class BookingService
                 (int) $request->people_count,
             );
 
-            $price = $this->resolvePrice($service, $request->service_price_id);
             $people = (int) $request->people_count;
 
             /** @var Booking $booking */
             $booking = Booking::query()->create([
                 'booking_request_id' => $request->getKey(),
-                'user_id' => $user->getKey(),
+                'user_id' => $request->user_id,
                 'business_id' => $request->business_id,
                 'appointment_date' => $startsAt->toDateString(),
                 'starts_at' => $startsAt,
@@ -234,23 +174,24 @@ class BookingService
                 'service_name_snapshot' => $service->name,
                 'duration_minutes_snapshot' => $price->durationMinutes(),
                 'max_people_snapshot' => (int) $service->max_people,
+                'required_staff_count_snapshot' => $service->required_staff_count,
                 'unit_price_minor' => $price->price_minor,
                 'currency' => $price->currency,
                 'quantity' => $people,
             ]);
 
             $booking->statusHistory()->create([
-                'changed_by_user_id' => $user->getKey(),
+                'changed_by_user_id' => $actor->getKey(),
                 'old_status' => null,
                 'new_status' => BookingStatus::AwaitingPayment->value,
-                'note' => 'Booking created from a confirmed request time.',
+                'note' => 'Booking created after business approval of the requested time.',
                 'created_at' => now(),
             ]);
 
-            $request->forceFill(['status' => BookingRequestStatus::Confirmed->value, 'confirmed_at' => now()])->save();
+            $request->forceFill(['status' => BookingRequestStatus::Approved->value, 'accepted_at' => now()])->save();
 
             $this->notifications->notify(
-                $user,
+                $request->user,
                 NotificationType::Booking,
                 'Booking awaiting payment',
                 'Complete payment to confirm your appointment at '.$request->business->name.'.',
@@ -258,22 +199,29 @@ class BookingService
             );
 
             return $booking->refresh();
-        });
+        }, 3);
     }
 
     // -------------------------------------------------------------------------
     // Business-side request handling
     // -------------------------------------------------------------------------
 
-    public function declineRequest(BookingRequest $request, ?string $reason = null): BookingRequest
+    public function rejectRequest(User $actor, BookingRequest $request, ?string $reason = null): BookingRequest
     {
-        return DB::transaction(function () use ($request, $reason): BookingRequest {
-            if (! in_array($request->status, [BookingRequestStatus::Pending, BookingRequestStatus::TimesProposed], true)) {
-                throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'Only pending or proposed requests can be declined.');
+        return DB::transaction(function () use ($actor, $request, $reason): BookingRequest {
+            $request = BookingRequest::query()->whereKey($request->id)->lockForUpdate()->firstOrFail();
+            if (! $actor->belongsToBusiness($request->business)) {
+                throw ApiException::forbidden('You do not manage this business.');
+            }
+            if ($request->status !== BookingRequestStatus::Pending) {
+                throw ApiException::conflict(ErrorCode::BookingStatusTransitionInvalid, 'Only pending booking requests can be rejected.');
+            }
+            if ($request->expires_at->isPast()) {
+                throw ApiException::conflict(ErrorCode::BookingRequestExpired, 'This booking request has expired.');
             }
 
             $request->forceFill([
-                'status' => BookingRequestStatus::Declined->value,
+                'status' => BookingRequestStatus::Rejected->value,
                 'declined_at' => now(),
                 'decline_reason' => $reason,
             ])->save();
@@ -281,7 +229,7 @@ class BookingService
             $this->notifications->notify(
                 $request->user,
                 NotificationType::Booking,
-                'Booking request declined',
+                'Booking request rejected',
                 $request->business->name.' cannot serve your request.'.($reason !== null ? ' Reason: '.$reason : ''),
                 ['booking_request_id' => $request->getKey()],
             );
@@ -391,7 +339,7 @@ class BookingService
     public function expireStaleRequests(): int
     {
         return BookingRequest::query()
-            ->whereIn('status', [BookingRequestStatus::Pending->value, BookingRequestStatus::TimesProposed->value])
+            ->where('status', BookingRequestStatus::Pending->value)
             ->where('expires_at', '<', now())
             ->update(['status' => BookingRequestStatus::Expired->value]);
     }

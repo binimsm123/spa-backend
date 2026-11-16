@@ -11,6 +11,10 @@ return [
     'booking' => [
         // How long a booking request stays answerable.
         'request_ttl_hours' => env('BOOKING_REQUEST_TTL_HOURS', 24),
+        'availability_cache_store' => env('AVAILABILITY_CACHE_STORE', 'redis'),
+        'availability_cache_seconds' => (int) env('AVAILABILITY_CACHE_SECONDS', 20),
+        'availability_lock_seconds' => (int) env('AVAILABILITY_LOCK_SECONDS', 30),
+        'availability_lock_wait_seconds' => (int) env('AVAILABILITY_LOCK_WAIT_SECONDS', 2),
     ],
 
     'checkout' => [

@@ -17,7 +17,8 @@ class UpdateBookingStatusRequest extends FormRequest
         return [
             'status' => ['required', 'string', Rule::in(['confirmed', 'in_progress', 'completed', 'cancelled', 'refunded'])],
             'note' => ['nullable', 'string', 'max:255'],
-            'staff_user_id' => ['nullable', 'ulid', 'exists:users,id'],
+            'staff_user_id' => ['prohibited'],
+            'staff_user_ids' => ['prohibited'],
         ];
     }
 }

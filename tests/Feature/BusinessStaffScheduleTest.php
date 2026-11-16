@@ -283,3 +283,110 @@ it('returns clear 404 messages for missing schedule records', function (string $
 })->with([
     ['business', 'Business not found.'], ['user', 'Staff user not found in this business.'], ['leave', 'Staff leave not found in this business.'],
 ]);
+
+it('stores multiple named breaks and preserves omitted breaks until explicitly cleared or the day becomes closed', function (): void {
+    [$actor, , , $membership, $path] = staffScheduleFixture();
+    $hours = staffWeeklyHours();
+    $breaks = [
+        ['name' => 'Morning rest', 'starts_at' => '10:00', 'ends_at' => '10:15'],
+        ['name' => 'Meal', 'starts_at' => '12:00', 'ends_at' => '13:00'],
+        ['name' => null, 'starts_at' => '15:00', 'ends_at' => '15:15'],
+    ];
+    $hours[1]['breaks'] = $breaks;
+
+    $this->actingAs($actor, 'sanctum')->putJson($path.'/hours', ['hours' => $hours])->assertOk()
+        ->assertJsonPath('data.hours.1.breaks', $breaks)->assertJsonMissingPath('data.hours.1.lunch_starts_at');
+    $this->getJson($path.'/hours')->assertOk()->assertJsonPath('data.hours.1.breaks', $breaks);
+    expect($membership->hours()->where('weekday', 1)->firstOrFail()->breaks)->toEqual($breaks);
+
+    $this->putJson($path.'/hours', ['hours' => staffWeeklyHours()])->assertOk()->assertJsonPath('data.hours.1.breaks', $breaks);
+
+    $hours[1]['is_closed'] = true;
+    $hours[1]['opens_at'] = null;
+    $hours[1]['closes_at'] = null;
+    $this->putJson($path.'/hours', ['hours' => $hours])->assertOk()->assertJsonPath('data.hours.1.breaks', []);
+    $this->putJson($path.'/hours', ['hours' => staffWeeklyHours()])->assertOk()->assertJsonPath('data.hours.1.breaks', []);
+    expect($membership->hours()->where('weekday', 1)->firstOrFail()->breaks)->toBe([]);
+});
+
+it('returns 422 for incomplete or out of hours breaks without replacing existing schedules', function (array $break, string $field): void {
+    [$actor, , , $membership, $path] = staffScheduleFixture();
+    StaffHour::factory()->for($membership, 'businessMembership')->create(['weekday' => 1]);
+    $hours = staffWeeklyHours();
+    $hours[1]['breaks'] = [$break];
+
+    $this->actingAs($actor, 'sanctum')->putJson($path.'/hours', ['hours' => $hours])->assertUnprocessable()
+        ->assertJsonValidationErrors('hours.1.breaks.0.'.$field);
+
+    $this->assertDatabaseCount('staff_hours', 1);
+    expect($membership->hours()->firstOrFail()->opens_at->format('H:i'))->toBe('09:00');
+})->with([
+    'missing end' => [['starts_at' => '12:00'], 'ends_at'],
+    'missing start' => [['ends_at' => '13:00'], 'starts_at'],
+    'backwards' => [['starts_at' => '13:00', 'ends_at' => '12:00'], 'ends_at'],
+    'zero duration' => [['starts_at' => '12:00', 'ends_at' => '12:00'], 'ends_at'],
+    'before shift' => [['starts_at' => '07:00', 'ends_at' => '09:00'], 'starts_at'],
+    'after shift' => [['starts_at' => '15:00', 'ends_at' => '17:00'], 'ends_at'],
+    'invalid time' => [['starts_at' => '25:00', 'ends_at' => '13:00'], 'starts_at'],
+    'long name' => [['name' => str_repeat('a', 101), 'starts_at' => '12:00', 'ends_at' => '13:00'], 'name'],
+]);
+
+it('returns 422 for overlapping or duplicate breaks while allowing adjacent breaks in any input order', function (): void {
+    [$actor, , , , $path] = staffScheduleFixture();
+    $hours = staffWeeklyHours();
+    $hours[1]['breaks'] = [
+        ['starts_at' => '12:00', 'ends_at' => '13:00'],
+        ['starts_at' => '11:30', 'ends_at' => '12:30'],
+    ];
+
+    $this->actingAs($actor, 'sanctum')->putJson($path.'/hours', ['hours' => $hours])->assertUnprocessable()
+        ->assertJsonValidationErrors(['hours.1.breaks.0.starts_at' => 'Staff breaks must not overlap.']);
+    $hours[1]['breaks'][1] = $hours[1]['breaks'][0];
+    $this->putJson($path.'/hours', ['hours' => $hours])->assertUnprocessable()->assertJsonValidationErrors('hours.1.breaks.1.starts_at');
+    $this->assertDatabaseCount('staff_hours', 0);
+
+    $hours[1]['breaks'][1] = ['starts_at' => '11:00', 'ends_at' => '12:00'];
+    $this->putJson($path.'/hours', ['hours' => $hours])->assertOk()->assertJsonCount(2, 'data.hours.1.breaks');
+});
+
+it('returns 422 for invalid break collections without saving hours', function (mixed $breaks): void {
+    [$actor, , , , $path] = staffScheduleFixture();
+    $hours = staffWeeklyHours();
+    $hours[1]['breaks'] = $breaks;
+
+    $this->actingAs($actor, 'sanctum')->putJson($path.'/hours', ['hours' => $hours])->assertUnprocessable()->assertJsonValidationErrors('hours.1.breaks');
+
+    $this->assertDatabaseCount('staff_hours', 0);
+})->with([
+    'null' => [null], 'string' => ['12:00-13:00'],
+    'not a list' => [['meal' => ['starts_at' => '12:00', 'ends_at' => '13:00']]],
+    'too many' => [array_fill(0, 51, ['starts_at' => '12:00', 'ends_at' => '13:00'])],
+]);
+
+it('accepts an empty break list and normalizes unnamed breaks', function (): void {
+    [$actor, , , , $path] = staffScheduleFixture();
+    $hours = staffWeeklyHours();
+    $hours[1]['breaks'] = [];
+    $hours[2]['breaks'] = [['starts_at' => '08:00', 'ends_at' => '08:15'], ['starts_at' => '15:45', 'ends_at' => '16:00']];
+
+    $this->actingAs($actor, 'sanctum')->putJson($path.'/hours', ['hours' => $hours])->assertOk()
+        ->assertJsonPath('data.hours.1.breaks', [])->assertJsonPath('data.hours.2.breaks.0.name', null)
+        ->assertJsonPath('data.hours.2.breaks.1.ends_at', '16:00');
+});
+
+it('returns 422 without changing the week when updated working hours exclude a saved break', function (): void {
+    [$actor, , , $membership, $path] = staffScheduleFixture();
+    $breaks = [['name' => null, 'starts_at' => '12:00', 'ends_at' => '13:00']];
+    StaffHour::factory()->for($membership, 'businessMembership')->create(['weekday' => 1, 'breaks' => $breaks]);
+    $hours = staffWeeklyHours();
+    $hours[1]['closes_at'] = '12:30';
+
+    $this->actingAs($actor, 'sanctum')->putJson($path.'/hours', ['hours' => $hours])->assertUnprocessable()
+        ->assertJsonValidationErrors('hours.1.breaks.0.ends_at');
+
+    $this->assertDatabaseCount('staff_hours', 1);
+    $this->assertDatabaseHas('staff_hours', ['business_user_id' => $membership->id, 'weekday' => 1, 'closes_at' => '17:00:00']);
+    $hours[1]['breaks'] = [];
+    $this->putJson($path.'/hours', ['hours' => $hours])->assertOk()->assertJsonPath('data.hours.1.breaks', [])
+        ->assertJsonPath('data.hours.1.closes_at', '12:30');
+});

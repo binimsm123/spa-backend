@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Enums\BookingRequestStatus;
 use App\Models\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class BookingRequest extends Model
@@ -19,6 +18,7 @@ class BookingRequest extends Model
         'service_price_id',
         'people_count',
         'requested_date',
+        'requested_time',
         'timezone',
         'status',
         'idempotency_key',
@@ -34,6 +34,7 @@ class BookingRequest extends Model
         return [
             'status' => BookingRequestStatus::class,
             'requested_date' => 'date',
+            'requested_time' => 'datetime:H:i',
             'people_count' => 'integer',
             'expires_at' => 'datetime',
             'accepted_at' => 'datetime',
@@ -55,11 +56,6 @@ class BookingRequest extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
-    }
-
-    public function times(): HasMany
-    {
-        return $this->hasMany(BookingRequestTime::class);
     }
 
     public function servicePrice(): BelongsTo

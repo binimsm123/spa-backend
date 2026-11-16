@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\StaffBreaks;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -14,6 +15,7 @@ class StaffHourResource extends JsonResource
             'opens_at' => $this->opens_at?->format('H:i'),
             'closes_at' => $this->closes_at?->format('H:i'),
             'is_closed' => $this->is_closed,
+            'breaks' => StaffBreaks::normalize($this->breaks ?? []),
         ];
     }
 }

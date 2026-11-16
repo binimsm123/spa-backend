@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Business;
 use App\Models\BusinessClosure;
 use App\Models\BusinessHour;
+use App\Models\BusinessUser;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Support\ApiException;
@@ -16,53 +17,131 @@ use Illuminate\Support\Collection;
 
 class AvailabilityService
 {
+    private const SEARCH_WINDOW_DAYS = 30;
+
+    public function __construct(
+        private readonly StaffAvailabilityService $staffing,
+        private readonly AvailabilityCache $cache,
+    ) {}
+
     /**
-     * Next five open dates in the business timezone; offline status excludes today only.
+     * Up to five dates with service slots in the next 30 days, in the business timezone.
+     * Offline status excludes today only.
      *
-     * @return Collection<int, string>
+     * @return array{
+     *     dates: Collection<int, string>,
+     *     availability: Collection<int, array{date: string, slots: array<int, array{starts_at: string, ends_at: string}>}>,
+     *     message: string
+     * }
      */
-    public function availableDatesFor(Business $business): Collection
+    public function availableDatesFor(Business $business, Service $service, int $peopleCount = 1, ?string $servicePriceId = null): array
     {
-        if ($business->status !== 'active') {
-            return collect();
+        $this->assertBookable($service, $peopleCount);
+
+        if ($service->business_id !== $business->getKey()) {
+            throw ApiException::notFound('The selected service is not available at this business. Please choose another service.');
         }
 
-        $openWeekdays = $business->hours()
-            ->where('is_closed', false)
-            ->whereColumn('opens_at', '<', 'closes_at')
-            ->pluck('weekday');
+        if ($business->status !== 'active') {
+            return ['dates' => collect(), 'availability' => collect(), 'message' => 'This business is not accepting bookings at the moment. Please check again later.'];
+        }
 
-        if ($openWeekdays->isEmpty()) {
-            return collect();
+        $key = 'availability:v1:'.hash('sha256', json_encode([
+            $business->getKey(), $business->timezone, $business->is_online, $business->getRawOriginal('updated_at'),
+            $service->getKey(), $service->required_staff_count, $service->getRawOriginal('updated_at'),
+            $servicePriceId === null ? null : strtolower($servicePriceId), $peopleCount,
+            now($business->timezone)->toDateString(), self::SEARCH_WINDOW_DAYS,
+        ], JSON_THROW_ON_ERROR));
+        $result = $this->cache->remember($key, fn (): array => $this->calculateAvailability($business, $service, $servicePriceId));
+
+        if (! $result['has_opening_hours']) {
+            return ['dates' => collect(), 'availability' => collect(), 'message' => 'This business has no available opening hours. Please contact the business for availability.'];
+        }
+
+        $now = now($business->timezone);
+        $availability = collect($result['availability'])->map(function (array $day) use ($business, $now): array {
+            $day['slots'] = array_values(array_filter($day['slots'], fn (array $slot): bool => Carbon::parse($day['date'].' '.$slot['starts_at'], $business->timezone)->gt($now)));
+
+            return $day;
+        })->filter(fn (array $day): bool => $day['slots'] !== [])->take(5)->values();
+
+        $dateCount = $availability->count();
+        $searchWindowDays = self::SEARCH_WINDOW_DAYS;
+        $message = match ($dateCount) {
+            0 => "No booking dates are available for this service in the next {$searchWindowDays} days. Please try another service or check again later.",
+            1 => "Only 1 booking date is available for this service in the next {$searchWindowDays} days.",
+            2, 3, 4 => "Only {$dateCount} booking dates are available for this service in the next {$searchWindowDays} days.",
+            default => 'Available booking dates loaded.',
+        };
+
+        if (! $business->is_online) {
+            $message = 'This business is offline today. '.$message;
+        }
+
+        return ['dates' => $availability->pluck('date'), 'availability' => $availability, 'message' => $message];
+    }
+
+    /** @return array{has_opening_hours: bool, availability: array<int, array{date: string, slots: array<int, array{starts_at: string, ends_at: string}>}>} */
+    private function calculateAvailability(Business $business, Service $service, ?string $servicePriceId): array
+    {
+        $hours = $business->hours()->where('is_closed', false)->whereColumn('opens_at', '<', 'closes_at')->get()->keyBy('weekday');
+        if ($hours->isEmpty()) {
+            return ['has_opening_hours' => false, 'availability' => []];
         }
 
         $candidateDate = now($business->timezone)->startOfDay();
+        $today = $candidateDate->toDateString();
+        $searchEndsAt = $candidateDate->copy()->addDays(self::SEARCH_WINDOW_DAYS);
         if (! $business->is_online) {
             $candidateDate->addDay();
         }
+        $closures = $business->closures()->where('ends_on', '>=', $candidateDate->toDateString())
+            ->where('starts_on', '<', $searchEndsAt->toDateString())->get();
+        $availability = [];
+        $dateLimit = 5;
+        $price = null;
+        $schedule = null;
+        $scheduleEndsAt = null;
 
-        $closures = $business->closures()->where('ends_on', '>=', $candidateDate->toDateString())->get();
-        $availableDates = collect();
-
-        while ($availableDates->count() < 5) {
+        while (count($availability) < $dateLimit && $candidateDate->lt($searchEndsAt)) {
             $dateString = $candidateDate->toDateString();
             $closure = $closures->first(fn (BusinessClosure $closure): bool => $closure->starts_on->toDateString() <= $dateString
                 && $closure->ends_on->toDateString() >= $dateString);
-
             if ($closure !== null) {
                 $candidateDate = Carbon::parse($closure->ends_on->toDateString(), $business->timezone)->addDay();
 
                 continue;
             }
 
-            if ($openWeekdays->contains($candidateDate->dayOfWeek)) {
-                $availableDates->push($dateString);
+            if ($hours->has($candidateDate->dayOfWeek)) {
+                $price ??= $this->priceFor($service, $servicePriceId);
+                if ($schedule === null || $candidateDate->gt($scheduleEndsAt)) {
+                    $scheduleEndsAt = $candidateDate->copy()->addDays(13)->min($searchEndsAt->copy()->subDay());
+                    $schedule = $this->staffing->scheduleForRange($business, $candidateDate, $scheduleEndsAt);
+                    if ($schedule['staff']->filter(fn (BusinessUser $member): bool => $member->services->contains('id', $service->id))->count() < $service->required_staff_count) {
+                        break;
+                    }
+                }
+                $bookingsFrom = $candidateDate->copy()->subDays(2)->toDateString();
+                $bookingsThrough = $candidateDate->copy()->addDays(2)->toDateString();
+                $daySchedule = [
+                    'staff' => $schedule['staff'],
+                    'bookings' => $schedule['bookings']->filter(fn (Booking $booking): bool => $booking->getRawOriginal('appointment_date') >= $bookingsFrom
+                        && $booking->getRawOriginal('appointment_date') <= $bookingsThrough),
+                ];
+                $slots = $this->calculateSlots($service, $business, $candidateDate, $hours->get($candidateDate->dayOfWeek), $price, $daySchedule);
+                if ($slots->isNotEmpty()) {
+                    $availability[] = ['date' => $dateString, 'slots' => $slots->all()];
+                    // Keep a backup when today's final slot could expire during the cache lifetime.
+                    if ($dateString === $today) {
+                        $dateLimit = 6;
+                    }
+                }
             }
-
             $candidateDate->addDay();
         }
 
-        return $availableDates;
+        return ['has_opening_hours' => true, 'availability' => $availability];
     }
 
     /**
@@ -74,7 +153,18 @@ class AvailabilityService
     {
         $this->assertBookable($service, $peopleCount);
 
-        $weekday = (int) $date->format('w'); // 0 (Sun) .. 6 (Sat)
+        if ($service->business_id !== $business->getKey() || $business->status !== 'active' || ! $business->is_online) {
+            return collect();
+        }
+
+        return $this->slotsForDate($service, $business, $date, $servicePriceId);
+    }
+
+    /** @return Collection<int, array{starts_at: string, ends_at: string}> */
+    private function slotsForDate(Service $service, Business $business, Carbon $date, ?string $servicePriceId): Collection
+    {
+        $date = Carbon::parse($date->toDateString(), $business->timezone);
+        $weekday = $date->dayOfWeek;
 
         /** @var BusinessHour|null $hours */
         $hours = BusinessHour::query()
@@ -90,9 +180,11 @@ class AvailabilityService
             return collect();
         }
 
-        $opensAt = $date->copy()->setTimeFromTimeString($hours->getRawOriginal('opens_at'));
-        $closesAt = $date->copy()->setTimeFromTimeString($hours->getRawOriginal('closes_at'));
+        return $this->calculateSlots($service, $business, $date, $hours, $this->priceFor($service, $servicePriceId), $this->staffing->scheduleFor($business, $date));
+    }
 
+    private function priceFor(Service $service, ?string $servicePriceId): ServicePrice
+    {
         $price = ServicePrice::query()
             ->where('service_id', $service->getKey())
             ->where('is_current', true)
@@ -100,15 +192,23 @@ class AvailabilityService
             ->first();
 
         if ($price === null) {
-            throw ApiException::conflict(ErrorCode::ServiceUnavailable, 'This service has no price at the selected business.');
+            throw ApiException::conflict(ErrorCode::ServiceUnavailable, 'This service is currently unavailable for booking. Please choose another service or check again later.');
         }
 
+        return $price;
+    }
+
+    /**
+     * @param  array{staff: Collection<int, BusinessUser>, bookings: Collection<int, Booking>}  $schedule
+     * @return Collection<int, array{starts_at: string, ends_at: string}>
+     */
+    private function calculateSlots(Service $service, Business $business, Carbon $date, BusinessHour $hours, ServicePrice $price, array $schedule): Collection
+    {
+        $opensAt = $date->copy()->setTimeFromTimeString($hours->getRawOriginal('opens_at'));
+        $closesAt = $date->copy()->setTimeFromTimeString($hours->getRawOriginal('closes_at'));
         $duration = $price->durationMinutes();
         $slotMinutes = $this->slotGranularity($duration);
         $now = now($business->timezone);
-
-        // Existing bookings that block the business for the whole day (excluding cancelled/expired).
-        $taken = $this->bookedIntervals($business, $date);
 
         $slots = [];
         $cursor = $opensAt->copy();
@@ -116,9 +216,7 @@ class AvailabilityService
         while ($cursor->copy()->addMinutes($duration)->lte($closesAt)) {
             $endsAt = $cursor->copy()->addMinutes($duration);
 
-            $overlaps = $taken->contains(fn (array $interval) => $cursor->lt($interval['ends_at']) && $endsAt->gt($interval['starts_at']));
-
-            if (! $overlaps && $cursor->gt($now)) {
+            if ($cursor->gt($now) && $this->staffing->suggestionsFor($service, $schedule, $cursor, $endsAt, $service->required_staff_count)->isNotEmpty()) {
                 $slots[] = [
                     'starts_at' => $cursor->format('H:i'),
                     'ends_at' => $endsAt->format('H:i'),
@@ -183,16 +281,15 @@ class AvailabilityService
             throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'The selected time is outside the business opening hours. Pick another time.');
         }
 
-        $conflict = Booking::query()
-            ->where('business_id', $business->getKey())
-            ->whereIn('status', ['awaiting_payment', 'confirmed', 'in_progress', 'completed'])
-            ->where('starts_at', '<', $endsAt)
-            ->where('ends_at', '>', $startsAt)
-            ->lockForUpdate()
-            ->first(['id']);
+        if ($business->status !== 'active' || ! $business->is_online) {
+            throw ApiException::conflict(ErrorCode::BusinessOffline, 'This business is not accepting online bookings.');
+        }
 
-        if ($conflict !== null) {
-            throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'The selected time overlaps another booking. Pick another time.');
+        $startsAt = $startsAt->copy()->setTimezone($business->timezone);
+        $endsAt = $endsAt->copy()->setTimezone($business->timezone);
+        $schedule = $this->staffing->scheduleFor($business, $startsAt, true);
+        if ($this->staffing->suggestionsFor($service, $schedule, $startsAt, $endsAt, $service->required_staff_count)->isEmpty()) {
+            throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'There are not enough available staff for the selected time. Pick another time.');
         }
     }
 
@@ -217,24 +314,6 @@ class AvailabilityService
             ->whereDate('starts_on', '<=', $date->toDateString())
             ->whereDate('ends_on', '>=', $date->toDateString())
             ->exists();
-    }
-
-    /**
-     * Blocking intervals from existing bookings for a business on a date.
-     *
-     * @return Collection<int, array{starts_at: Carbon, ends_at: Carbon}>
-     */
-    private function bookedIntervals(Business $business, Carbon $date): Collection
-    {
-        return Booking::query()
-            ->where('business_id', $business->getKey())
-            ->whereDate('appointment_date', $date->toDateString())
-            ->whereIn('status', ['awaiting_payment', 'confirmed', 'in_progress', 'completed'])
-            ->get(['starts_at', 'ends_at'])
-            ->map(fn (Booking $booking) => [
-                'starts_at' => Carbon::parse($booking->starts_at),
-                'ends_at' => Carbon::parse($booking->ends_at),
-            ]);
     }
 
     /**
