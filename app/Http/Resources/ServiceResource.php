@@ -15,6 +15,7 @@ class ServiceResource extends JsonResource
             'slug' => $this->slug,
             'description' => $this->description,
             'image_url' => $this->image_path ? url('storage/'.$this->image_path) : null,
+            'video_urls' => $this->video_urls ?? [],
             'photos' => $this->whenLoaded('photos', fn () => $this->photos->map(fn ($photo) => [
                 'id' => $photo->id, 'url' => url('storage/'.$photo->path),
             ])),

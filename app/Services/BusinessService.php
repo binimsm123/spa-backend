@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\BookingStatus;
 use App\Models\Business;
 use App\Models\BusinessClosure;
 use App\Models\BusinessHour;
@@ -109,6 +110,8 @@ class BusinessService
         $this->applyBusinessFilters($query, $filters, $catalog);
 
         if ($catalog) {
+            $query->withCount('bookings')
+                ->withSum(['bookings as guests_served' => fn (Builder $bookings) => $bookings->where('status', BookingStatus::Completed)], 'people_count');
             if (isset($filters['category_id'])) {
                 $query->whereHas('categories', fn (Builder $categories) => $categories->whereKey($filters['category_id'])->where('is_active', true));
                 $query->whereHas('services', fn (Builder $services) => $this->catalogServices($services, $filters));
@@ -117,7 +120,7 @@ class BusinessService
                 ->with(['categories' => fn ($categories) => $categories->where('is_active', true)
                     ->when(isset($filters['category_id']), fn ($categories) => $categories->whereKey($filters['category_id']))
                     ->orderBy('sort_order')->orderBy('categories.id'), 'services' => fn ($services) => $this->catalogServices($services, $filters)
-                    ->with(['category', 'currentPrices'])
+                    ->with(['category', 'currentPrices', 'photos'])
                     ->orderBy('name')->orderBy('id')
                     ->offset(($servicePage - 1) * $servicesPerPage)->limit($servicesPerPage)]);
 
@@ -182,8 +185,16 @@ class BusinessService
             ->withWhereHas('businesses', function (Builder|Relation $query) use ($filters): void {
                 $businesses = $query instanceof Relation ? $query->getQuery() : $query;
                 if ($query instanceof Relation) {
-                    $businesses->select(['businesses.id', 'businesses.name', 'businesses.slug', 'businesses.about', 'businesses.hero_image_path', 'businesses.phone_number'])
-                        ->with(['reviews' => fn (Relation $reviews) => $reviews->where('is_hidden', false)->with('user.roles')->latest()]);
+                    $businesses->select([
+                        'businesses.id', 'businesses.name', 'businesses.slug', 'businesses.about', 'businesses.hero_image_path', 'businesses.phone_number',
+                        'businesses.years_of_experience', 'businesses.is_insured', 'businesses.gallery_image_urls',
+                    ])
+                        ->withCount('bookings')
+                        ->withSum(['bookings as guests_served' => fn (Builder $bookings) => $bookings->where('status', BookingStatus::Completed)], 'people_count')
+                        ->with([
+                            'reviews' => fn (Relation $reviews) => $reviews->where('is_hidden', false)->with('user.roles')->latest(),
+                            'offers' => fn (Relation $offers) => $offers->where('status', 'active')->where('starts_at', '<=', now())->where('expires_at', '>=', now()),
+                        ]);
                 }
                 $this->applyBusinessFilters(
                     $businesses, $filters, true, 'business_category.category_id',
@@ -196,7 +207,7 @@ class BusinessService
             $categories->map(function (Category $category): Category {
                 $category->businesses->load(['services' => fn (Relation $services) => $services
                     ->where('status', 'active')->where('category_id', $category->id)
-                    ->with('currentPrices')->orderBy('name')->orderBy('id')]);
+                    ->with(['currentPrices', 'photos'])->orderBy('name')->orderBy('id')]);
 
                 return $category;
             });

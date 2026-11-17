@@ -22,6 +22,7 @@ class Offer extends Model
         'code',
         'title',
         'description',
+        'image_urls',
         'discount_type',
         'discount_value',
         'minimum_booking_amount_minor',
@@ -40,6 +41,7 @@ class Offer extends Model
     protected function casts(): array
     {
         return [
+            'image_urls' => 'array',
             'discount_type' => DiscountType::class,
             'status' => OfferStatus::class,
             'is_platform_sponsored' => 'boolean',

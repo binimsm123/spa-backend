@@ -50,7 +50,10 @@ it('registers a pending business with a scoped owner and private KYC documents',
         ->assertJsonPath('data.home_service', $extraFields['home_service'] ?? false)
         ->assertJsonPath('data.location_service', $extraFields['location_service'] ?? true)
         ->assertJsonPath('data.staff_number', $extraFields['staff_number'] ?? 0)
-        ->assertJsonMissingPath('data.is_insured')
+        ->assertJsonPath('data.is_insured', $extraFields['is_insured'] ?? false)
+        ->assertJsonPath('data.phone_number', '+9779800000000')
+        ->assertJsonPath('data.years_of_experience', $extraFields['years_of_experience'] ?? null)
+        ->assertJsonPath('data.gallery_image_urls', $extraFields['gallery_image_urls'] ?? [])
         ->assertJsonPath('data.my_role', 'owner')
         ->assertJsonPath('data.user_roles', fn (array $roles): bool => collect($roles)->sort()->values()->all() === ['customer', 'owner'])
         ->assertJsonMissingPath('data.kyc.owner_identity_type')
@@ -81,10 +84,15 @@ it('registers a pending business with a scoped owner and private KYC documents',
     'with service options and staff count' => [[
         'home_service' => true, 'location_service' => false, 'staff_number' => 6,
     ]],
-    'ignores removed fields from older clients' => [[
+    'accepts insurance while ignoring removed fields from older clients' => [[
         'vat_pan_number' => '123456789',
         'registration_number' => 'REG-12345',
         'owner_identity_type' => 'passport',
+        'is_insured' => true,
+    ]],
+    'with public profile details' => [[
+        'years_of_experience' => 8,
+        'gallery_image_urls' => ['https://media.example.com/spa.jpg'],
         'is_insured' => true,
     ]],
 ]);

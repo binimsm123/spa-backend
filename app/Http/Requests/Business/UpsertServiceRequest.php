@@ -37,6 +37,8 @@ class UpsertServiceRequest extends FormRequest
             'name' => [$required, 'required', 'string', 'max:'.($modern ? 120 : 160)],
             'description' => [$modern ? $required : 'sometimes', $modern ? 'required' : 'nullable', 'string', 'max:'.($modern ? 1000 : 4000)],
             'image_path' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'video_urls' => ['sometimes', 'array', 'list', 'max:20'],
+            'video_urls.*' => ['required', 'string', 'url:http,https', 'max:2048', 'distinct'],
             'max_people' => ['sometimes', 'integer', 'min:1', 'max:50'],
             'required_staff_count' => ['sometimes', 'integer', 'between:1,50'],
             'is_bookable' => ['sometimes', 'boolean'],

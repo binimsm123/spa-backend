@@ -24,7 +24,7 @@ class BusinessCatalogResource extends BusinessResource
                     } else {
                         $data = array_intersect_key((new BusinessResource($business))->resolve(), array_flip([
                             ...array_keys($business->getAttributes()),
-                            'hero_image_url', 'locations', 'services', 'reviews',
+                            'hero_image_url', 'locations', 'services', 'offers', 'reviews',
                         ]));
                         unset($data['address'], $data['city'], $data['latitude'], $data['longitude']);
                         if (array_key_exists('phone_number', $business->getAttributes())) {
@@ -122,6 +122,10 @@ class BusinessCatalogResource extends BusinessResource
             return [
                 'id' => $service->id, 'name' => $service->name, 'description' => $service->description,
                 'image_url' => $service->image_path ? url('storage/'.$service->image_path) : null,
+                'video_urls' => $service->video_urls ?? [],
+                'photos' => $service->relationLoaded('photos') ? $service->photos->map(fn ($photo): array => [
+                    'id' => $photo->id, 'url' => url('storage/'.$photo->path),
+                ])->values()->all() : [],
                 'price' => (int) ($price?->price_minor ?? 0), 'currency' => $price?->currency ?? 'NPR',
                 'service_prices' => ServicePriceResource::collection($service->currentPrices)->resolve(),
                 'bookable' => (bool) $service->is_bookable,

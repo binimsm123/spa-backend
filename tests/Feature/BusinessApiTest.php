@@ -233,7 +233,7 @@ it('lists only businesses the user manages', function (): void {
     $response = $this->actingAs($owner, 'sanctum')
         ->getJson('/api/v1/business/my')
         ->assertOk()
-        ->assertJsonMissingPath('data.items.0.is_insured');
+        ->assertJsonPath('data.items.0.is_insured', false);
 
     $names = collect($response->json('data.items'))->pluck('name');
 

@@ -14,6 +14,7 @@ class OfferResource extends JsonResource
             'code' => $this->code,
             'title' => $this->title,
             'description' => $this->description,
+            'image_urls' => $this->image_urls ?? [],
             'discount_type' => $this->discount_type?->value,
             'discount_value' => (int) $this->discount_value,
             'minimum_booking_amount_minor' => (int) $this->minimum_booking_amount_minor,

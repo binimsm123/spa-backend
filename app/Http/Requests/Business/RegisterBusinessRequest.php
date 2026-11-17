@@ -52,7 +52,10 @@ class RegisterBusinessRequest extends FormRequest
             'staff_number' => ['sometimes', 'integer', 'min:0', 'max:2147483647'],
             'outlet_number' => ['sometimes', 'integer', 'min:1', 'max:2147483647'],
             'is_insured' => ['sometimes', 'boolean'],
-            'personal_kyc_document' => ['sometimes', 'nullable', 'array:' . implode(',', User::KYC_DOCUMENT_TYPES)],
+            'years_of_experience' => ['sometimes', 'nullable', 'integer', 'between:0,65535'],
+            'gallery_image_urls' => ['sometimes', 'array', 'list', 'max:50'],
+            'gallery_image_urls.*' => ['required', 'string', 'url:http,https', 'max:2048', 'distinct'],
+            'personal_kyc_document' => ['sometimes', 'nullable', 'array:'.implode(',', User::KYC_DOCUMENT_TYPES)],
         ];
 
         foreach (Business::KYC_DOCUMENT_TYPES as $type) {
@@ -60,7 +63,7 @@ class RegisterBusinessRequest extends FormRequest
         }
 
         foreach (User::KYC_DOCUMENT_TYPES as $type) {
-            $rules['personal_kyc_document.' . $type] = [
+            $rules['personal_kyc_document.'.$type] = [
                 Rule::requiredIf(($this->all()['personal_kyc_document'] ?? null) !== null),
                 'file',
                 'mimes:pdf,jpg,jpeg,png',

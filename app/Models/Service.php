@@ -29,6 +29,7 @@ class Service extends Model
         'search_name',
         'description',
         'image_path',
+        'video_urls',
         'max_people',
         'required_staff_count',
         'is_bookable',
@@ -63,6 +64,7 @@ class Service extends Model
     protected function casts(): array
     {
         return [
+            'video_urls' => 'array',
             'is_bookable' => 'boolean',
             'required_staff_count' => 'integer',
         ];

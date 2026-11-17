@@ -20,6 +20,8 @@ class UpsertOfferRequest extends FormRequest
             'code' => [$isUpdate ? 'sometimes' : 'required', 'string', 'max:32', Rule::unique('offers', 'code')->ignore($this->route('offer'))],
             'title' => [$isUpdate ? 'sometimes' : 'required', 'string', 'max:160'],
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'image_urls' => ['sometimes', 'array', 'list', 'max:20'],
+            'image_urls.*' => ['required', 'string', 'url:http,https', 'max:2048', 'distinct'],
             'discount_type' => [$isUpdate ? 'sometimes' : 'required', 'in:fixed,percentage'],
             'discount_value' => [$isUpdate ? 'sometimes' : 'required', 'integer', 'min:1'],
             'minimum_booking_amount_minor' => ['sometimes', 'integer', 'min:0'],

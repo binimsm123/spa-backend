@@ -28,6 +28,9 @@ class Business extends Model
         'about',
         'hero_image_path',
         'phone_number',
+        'years_of_experience',
+        'gallery_image_urls',
+        'is_insured',
         'home_service',
         'location_service',
         'staff_number',
@@ -54,6 +57,9 @@ class Business extends Model
     {
         return [
             'kyc_documents' => 'array',
+            'years_of_experience' => 'integer',
+            'gallery_image_urls' => 'array',
+            'is_insured' => 'boolean',
             'is_verified' => 'boolean',
             'is_online' => 'boolean',
             'home_service' => 'boolean',

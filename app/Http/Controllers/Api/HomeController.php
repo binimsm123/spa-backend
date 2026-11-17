@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Dto\Api\CatalogData;
 use App\Http\Requests\Catalog\BusinessCatalogRequest;
@@ -35,7 +36,7 @@ class HomeController extends Controller
     public function newHome(BusinessCatalogRequest $request): JsonResponse
     {
         $loadServices = false;
-        if($request->has('services') && $request->services) {
+        if ($request->has('services') && $request->services) {
             $loadServices = true;
         }
         $categories = $this->businesses->categoriesWithBusiness($request->validated(), loadServices: $loadServices);
@@ -54,6 +55,8 @@ class HomeController extends Controller
     public function businessDetail(Request $request, Business $business): JsonResponse
     {
         $business->load(['locations', 'categories']);
+        $business->loadCount('bookings');
+        $business->loadSum(['bookings as guests_served' => fn ($query) => $query->where('status', BookingStatus::Completed)], 'people_count');
 
         if ($business->status !== 'active' || ! $business->is_online) {
             return $this->resource(new BusinessResource($business), 'This business is not currently bookable.');
@@ -62,7 +65,7 @@ class HomeController extends Controller
         $business->load([
             'hours',
             'closures',
-            'services' => fn ($q) => $q->where('status', 'active')->with(['category', 'currentPrices']),
+            'services' => fn ($q) => $q->where('status', 'active')->with(['category', 'currentPrices', 'photos']),
             'offers' => fn ($q) => $q->where('status', 'active')->where('starts_at', '<=', now())->where('expires_at', '>=', now()),
             'reviews' => fn ($q) => $q->where('is_hidden', false)->with('user')->latest()->limit(10),
         ]);
