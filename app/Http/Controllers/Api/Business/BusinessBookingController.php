@@ -16,6 +16,7 @@ use App\Services\BookingService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class BusinessBookingController extends Controller
 {
@@ -70,6 +71,11 @@ class BusinessBookingController extends Controller
     {
         $this->assertMember($request, $business);
 
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', Rule::when($request->filled('from'), 'after_or_equal:from')],
+        ]);
+
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
 
         $query = Booking::query()
@@ -77,6 +83,8 @@ class BusinessBookingController extends Controller
             ->with(['items', 'user', 'business.locations', 'payments', 'assignedStaff', 'assignedStaffMembers'])
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('date'), fn ($q, $date) => $q->whereDate('appointment_date', $date))
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->whereDate('appointment_date', '>=', $from))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->whereDate('appointment_date', '<=', $to))
             ->when($request->query('payment_status'), fn ($q, $ps) => $q->whereHas('payments', fn ($p) => $p->where('status', $ps)))
             ->orderBy('starts_at');
 
