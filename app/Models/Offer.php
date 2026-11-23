@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\DiscountType;
 use App\Enums\OfferStatus;
 use App\Models\Concerns\HasUlid;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,6 +15,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Offer extends Model
 {
     use HasFactory, HasUlid, SoftDeletes;
+
+    public const SUMMARY_RELATIONS = [
+        'business:id,name',
+        'service:id,name',
+        'service.currentPrices:service_id,price_minor,currency,duration',
+    ];
 
     protected $fillable = [
         'business_id',
@@ -66,6 +74,12 @@ class Offer extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    #[Scope]
+    protected function withListingDetails(Builder $query): void
+    {
+        $query->with(self::SUMMARY_RELATIONS);
     }
 
     public function redemptions(): HasMany

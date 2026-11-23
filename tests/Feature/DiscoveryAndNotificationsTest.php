@@ -70,15 +70,16 @@ it('validates and redeems offers once per user, then blocks duplicates', functio
     ]);
 
     $this->actingAs($user, 'sanctum')
-        ->postJson("/api/v1/offers/{$offer->getKey()}/redeem", ['service_id' => $service->getKey()])
-        ->assertCreated()->assertJsonPath('success', true);
+        ->postJson('/api/v1/offers/once/redeem', ['service_id' => $service->getKey()])
+        ->assertOk()->assertJsonPath('success', true);
 
     // Second redemption is rejected (409), even with an idempotency key.
     $this->actingAs($user, 'sanctum')
-        ->postJson("/api/v1/offers/{$offer->getKey()}/redeem", ['service_id' => $service->getKey()], ['Idempotency-Key' => 'other-key'])
+        ->postJson("/api/v1/offers/{$offer->code}/redeem", ['service_id' => $service->getKey()], ['Idempotency-Key' => 'other-key'])
         ->assertStatus(409);
 
-    // Unknown code redemption is not possible by construction; expired offers are rejected.
+    $this->postJson('/api/v1/offers/UNKNOWN/redeem', ['service_id' => $service->getKey()])->assertNotFound();
+
     $expired = Offer::query()->create([
         'code' => 'OLD',
         'title' => 'Old offer',
@@ -90,7 +91,7 @@ it('validates and redeems offers once per user, then blocks duplicates', functio
     ]);
 
     $this->actingAs($user, 'sanctum')
-        ->postJson("/api/v1/offers/{$expired->getKey()}/redeem", ['service_id' => $service->getKey()])
+        ->postJson("/api/v1/offers/{$expired->code}/redeem", ['service_id' => $service->getKey()])
         ->assertStatus(409);
 });
 

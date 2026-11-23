@@ -7,7 +7,6 @@ use App\Http\Dto\Api\OffersData;
 use App\Http\Requests\Offer\RedeemOfferRequest;
 use App\Http\Resources\OfferRedemptionResource;
 use App\Http\Resources\OfferResource;
-use App\Models\Business;
 use App\Models\Offer;
 use App\Models\Service;
 use App\Services\IdempotencyService;
@@ -36,6 +35,7 @@ class OfferController extends Controller
         $now = now();
 
         $query = Offer::query()
+            ->withListingDetails()
             ->where('status', '!=', 'paused')
             ->where(function ($q) {
                 $q->whereNull('business_id')->orWhereHas('business', fn ($b) => $b->where('status', 'active'));
@@ -49,19 +49,18 @@ class OfferController extends Controller
 
         $offers = $query->orderBy('expires_at')->paginate($perPage);
 
-        $page = $offers->toArray();
-
         return $this->success((new OffersData(
             OfferResource::collection($offers->getCollection())->resolve(),
-            $page['current_page'], $page['per_page'], $page['total'], $page['last_page'],
+            $offers->currentPage(), $offers->perPage(), $offers->total(), $offers->lastPage(),
         ))->toArray(), 'Offers loaded.');
     }
 
     /**
-     * POST /offers/{offer}/redeem — validation only; creates a short-lived reservation.
+     * POST /offers/{code}/redeem — creates a short-lived reservation.
      */
-    public function redeem(RedeemOfferRequest $request, Offer $offer): JsonResponse
+    public function redeem(RedeemOfferRequest $request, string $code): JsonResponse
     {
+        $offer = Offer::query()->where('code', strtoupper(trim($code)))->firstOrFail();
         $user = $request->user();
         $serviceId = $request->validated('service_id');
         $hash = IdempotencyService::requestHash(['offer' => $offer->getKey(), 'service' => $serviceId, 'user' => $user->getKey()]);

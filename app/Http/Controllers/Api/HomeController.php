@@ -66,7 +66,7 @@ class HomeController extends Controller
             'hours',
             'closures',
             'services' => fn ($q) => $q->where('status', 'active')->with(['category', 'currentPrices', 'photos']),
-            'offers' => fn ($q) => $q->where('status', 'active')->where('starts_at', '<=', now())->where('expires_at', '>=', now()),
+            'offers' => fn ($q) => $q->withListingDetails()->where('status', 'active')->where('starts_at', '<=', now())->where('expires_at', '>=', now()),
             'reviews' => fn ($q) => $q->where('is_hidden', false)->with('user')->latest()->limit(10),
         ]);
 

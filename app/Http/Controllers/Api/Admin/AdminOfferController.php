@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Business\UpsertOfferRequest;
+use App\Http\Requests\Admin\UpsertAdminOfferRequest;
 use App\Http\Resources\OfferResource;
 use App\Models\Offer;
 use App\Support\ApiException;
@@ -23,7 +23,7 @@ class AdminOfferController extends Controller
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
 
         $query = Offer::query()
-            ->with('business')
+            ->withListingDetails()
             ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
             ->when($request->query('business_id'), fn ($q, $id) => $q->where('business_id', $id))
             ->orderByDesc('created_at');
@@ -33,7 +33,7 @@ class AdminOfferController extends Controller
         return $this->paginated(OfferResource::collection($offers));
     }
 
-    public function store(UpsertOfferRequest $request): JsonResponse
+    public function store(UpsertAdminOfferRequest $request): JsonResponse
     {
         $data = $request->validated();
         $data['is_platform_sponsored'] = true;
@@ -41,19 +41,20 @@ class AdminOfferController extends Controller
 
         $offer = Offer::query()->create($data);
 
-        AuditLogger::record($request->user(), 'offer.created', 'offer', $offer->getKey(), null, $offer->only(['code', 'title', 'discount_type', 'discount_value']));
+        AuditLogger::record($request->user(), 'offer.created', 'offer', $offer->getKey(), null, $offer->only(['code', 'title', 'discount_type', 'discount_value', 'business_id', 'service_id']));
 
-        return $this->resource(OfferResource::make($offer), 'Offer created.', 201);
+        return $this->resource(OfferResource::make($offer->load(Offer::SUMMARY_RELATIONS)), 'Offer created.', 201);
     }
 
-    public function update(UpsertOfferRequest $request, Offer $offer): JsonResponse
+    public function update(UpsertAdminOfferRequest $request, Offer $offer): JsonResponse
     {
-        $before = $offer->only(['code', 'title', 'status', 'discount_type', 'discount_value', 'starts_at', 'expires_at']);
+        $auditedFields = ['code', 'title', 'status', 'discount_type', 'discount_value', 'starts_at', 'expires_at', 'service_id'];
+        $before = $offer->only($auditedFields);
         $offer->fill($request->validated())->save();
 
-        AuditLogger::record($request->user(), 'offer.updated', 'offer', $offer->getKey(), $before, $offer->only(['code', 'title', 'status', 'discount_type', 'discount_value', 'starts_at', 'expires_at']));
+        AuditLogger::record($request->user(), 'offer.updated', 'offer', $offer->getKey(), $before, $offer->only($auditedFields));
 
-        return $this->resource(OfferResource::make($offer->refresh()), 'Offer updated.');
+        return $this->resource(OfferResource::make($offer->refresh()->load(Offer::SUMMARY_RELATIONS)), 'Offer updated.');
     }
 
     public function destroy(Request $request, Offer $offer): JsonResponse

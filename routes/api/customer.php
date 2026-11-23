@@ -51,7 +51,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
     // Offers
     Route::get('offers', [OfferController::class, 'index']);
     Route::get('offers/{offer}', [OfferController::class, 'show'])->whereUlid('offer');
-    Route::post('offers/{offer}/redeem', [OfferController::class, 'redeem'])->whereUlid('offer')->middleware('throttle:booking');
+    Route::post('offers/{code}/redeem', [OfferController::class, 'redeem'])->middleware('throttle:booking');
 
     // Referrals + rewards
     Route::get('referrals/me', [ReferralController::class, 'me']);

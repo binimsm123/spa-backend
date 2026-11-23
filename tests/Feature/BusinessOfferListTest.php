@@ -50,6 +50,8 @@ it('lists business offers and applicable platform discounts without exposing oth
     ]);
     $items = collect($response->json('data.items'))->keyBy('id');
     expect($items[$own->getKey()]['business_id'])->toBe($business->getKey());
+    expect($items[$own->getKey()]['business'])->toBe(['id' => $business->id, 'name' => $business->name]);
+    expect($items[$servicePlatform->getKey()]['service']['name'])->toBe($service->name);
     expect($items[$own->getKey()]['is_platform_sponsored'])->toBeFalse();
     expect($items[$platform->getKey()]['business_id'])->toBeNull();
     expect($items[$platform->getKey()]['is_platform_sponsored'])->toBeTrue();
@@ -70,7 +72,7 @@ it('preserves usage counters for platform discounts in the business list', funct
 
 it('keeps platform offers read only for business owners', function (): void {
     [$business] = businessOfferListMember();
-    $offer = businessListOffer(['is_platform_sponsored' => true]);
+    $offer = businessListOffer(['is_platform_sponsored' => true, 'business_id' => $business->getKey()]);
     $url = '/api/v1/business/'.$business->getKey().'/offers/'.$offer->getKey();
 
     $this->patchJson($url, ['title' => 'Changed'])->assertNotFound();
@@ -93,3 +95,34 @@ it('requires authentication to list business offers with 401', function (): void
 
     $this->getJson('/api/v1/business/'.$business->getKey().'/offers')->assertUnauthorized();
 });
+
+it('returns the offer summaries after creation and update', function (bool $asAdmin): void {
+    if ($asAdmin) {
+        actingAsSuperadmin();
+        [$business, $service] = createBusinessWithService();
+        $url = '/api/v1/admin/offers';
+    } else {
+        [$business, $service] = businessOfferListMember();
+        $url = "/api/v1/business/{$business->id}/offers";
+    }
+
+    $offerId = $this->postJson($url, [
+        'business_id' => $business->id,
+        'service_id' => $service->id,
+        'code' => 'SUMMARY10',
+        'title' => 'Summary offer',
+        'discount_type' => 'percentage',
+        'discount_value' => 10,
+        'starts_at' => now()->addDay()->toIso8601String(),
+        'expires_at' => now()->addWeek()->toIso8601String(),
+    ])->assertCreated()
+        ->assertJsonPath('data.business', ['id' => $business->id, 'name' => $business->name])
+        ->assertJsonPath('data.service.id', $service->id)
+        ->assertJsonPath('data.service.name', $service->name)
+        ->assertJsonPath('data.service.service_prices.0.price_minor', 500000)
+        ->json('data.id');
+
+    $this->patchJson("{$url}/{$offerId}", ['service_id' => null])->assertOk()
+        ->assertJsonPath('data.business', ['id' => $business->id, 'name' => $business->name])
+        ->assertJsonPath('data.service', null);
+})->with(['admin' => [true], 'business' => [false]]);

@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\OfferResource;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\Business;
+use App\Models\Offer;
 use App\Models\Payment;
 use App\Models\Review;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 class AdminReportController extends Controller
@@ -114,11 +117,16 @@ class AdminReportController extends Controller
 
     public function offers(Request $request): JsonResponse
     {
-        $rows = \App\Models\Offer::query()
+        $rows = Offer::query()
+            ->withListingDetails()
             ->withCount('redemptions as redemption_count')
             ->orderByDesc('redemption_count')
             ->limit(100)
-            ->get(['id', 'code', 'title', 'status', 'usage_count', 'total_usage_limit']);
+            ->get()
+            ->map(fn (Offer $offer) => [
+                ...$offer->attributesToArray(),
+                ...Arr::only(OfferResource::make($offer)->resolve($request), ['business', 'service']),
+            ]);
 
         return $this->success(['items' => $rows]);
     }

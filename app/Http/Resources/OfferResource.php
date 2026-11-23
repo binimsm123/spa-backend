@@ -11,6 +11,19 @@ class OfferResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'business_id' => $this->business_id,
+            'service_id' => $this->service_id,
+            'business' => $this->whenLoaded('business', fn () => $this->business->only(['id', 'name'])),
+            'service' => $this->whenLoaded('service', fn () => [
+                'id' => $this->service->id,
+                'name' => $this->service->name,
+                'service_prices' => $this->service->currentPrices->map(fn ($price) => [
+                    'price_minor' => $price->price_minor,
+                    'currency' => $price->currency,
+                    'duration_minutes' => $price->durationMinutes(),
+                ]),
+            ]),
+            'is_platform_sponsored' => (bool) $this->is_platform_sponsored,
             'code' => $this->code,
             'title' => $this->title,
             'description' => $this->description,

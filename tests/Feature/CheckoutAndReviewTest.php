@@ -75,6 +75,12 @@ it('builds a checkout quote with promo discount and recalculates totals server-s
         ->assertOk()
         ->assertJsonPath('data.pricing.total', 4500)
         ->assertJsonPath('data.pricing.discount', 500);
+
+    [$otherBusiness] = createBusinessWithService();
+    Offer::query()->where('code', 'SAVE10')->update(['business_id' => $otherBusiness->getKey()]);
+
+    $this->postJson("/api/v1/bookings/{$booking->getKey()}/checkout/quote", ['promo_code' => 'save10'])
+        ->assertConflict();
 });
 
 it('creates a default quote and payment without a quote id', function (): void {

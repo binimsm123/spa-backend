@@ -144,7 +144,11 @@ class OfferService
             throw ApiException::conflict(ErrorCode::OfferUnavailable, 'The booking amount does not meet the offer minimum.');
         }
 
-        if ($service !== null && $offer->service_id !== null && $offer->service_id !== $service->getKey()) {
+        if ($offer->business_id !== null && $offer->business_id !== $service?->business_id) {
+            throw ApiException::conflict(ErrorCode::OfferUnavailable, 'This offer does not apply to the selected business.');
+        }
+
+        if ($offer->service_id !== null && $offer->service_id !== $service?->getKey()) {
             throw ApiException::conflict(ErrorCode::OfferUnavailable, 'This offer does not apply to the selected service.');
         }
 

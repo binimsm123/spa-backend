@@ -193,7 +193,7 @@ class BusinessService
                         ->withSum(['bookings as guests_served' => fn (Builder $bookings) => $bookings->where('status', BookingStatus::Completed)], 'people_count')
                         ->with([
                             'reviews' => fn (Relation $reviews) => $reviews->where('is_hidden', false)->with('user.roles')->latest(),
-                            'offers' => fn (Relation $offers) => $offers->where('status', 'active')->where('starts_at', '<=', now())->where('expires_at', '>=', now()),
+                            'offers' => fn (Relation $offers) => $offers->withListingDetails()->where('status', 'active')->where('starts_at', '<=', now())->where('expires_at', '>=', now()),
                         ]);
                 }
                 $this->applyBusinessFilters(

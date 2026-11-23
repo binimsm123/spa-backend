@@ -22,6 +22,7 @@ class BusinessOfferController extends Controller
         $this->assertMember($request, $business);
 
         $offers = Offer::query()
+            ->withListingDetails()
             ->where(function (Builder $query) use ($business): void {
                 $query->where('business_id', $business->getKey())
                     ->orWhere(function (Builder $platform) use ($business): void {
@@ -36,8 +37,6 @@ class BusinessOfferController extends Controller
 
         return $this->success(['items' => collect($offers)->map(function (Offer $offer) {
             $data = OfferResource::make($offer)->resolve();
-            $data['business_id'] = $offer->business_id;
-            $data['is_platform_sponsored'] = (bool) $offer->is_platform_sponsored;
             $data['redemption_count'] = (int) $offer->redemption_count;
             $data['remaining_usage'] = $offer->total_usage_limit !== null
                 ? max(0, $offer->total_usage_limit - $offer->usage_count)
@@ -57,23 +56,23 @@ class BusinessOfferController extends Controller
 
         $offer = $business->offers()->create($data);
 
-        return $this->resource(OfferResource::make($offer), 'Offer created.', 201);
+        return $this->resource(OfferResource::make($offer->load(Offer::SUMMARY_RELATIONS)), 'Offer created.', 201);
     }
 
     public function update(UpsertOfferRequest $request, Business $business, Offer $offer): JsonResponse
     {
         $this->assertMember($request, $business, ['owner', 'manager']);
-        abort_unless($offer->business_id === $business->getKey(), 404);
+        abort_unless($offer->business_id === $business->getKey() && ! $offer->is_platform_sponsored, 404);
 
         $offer->fill($request->validated())->save();
 
-        return $this->resource(OfferResource::make($offer->refresh()), 'Offer updated.');
+        return $this->resource(OfferResource::make($offer->refresh()->load(Offer::SUMMARY_RELATIONS)), 'Offer updated.');
     }
 
     public function destroy(Request $request, Business $business, Offer $offer): JsonResponse
     {
         $this->assertMember($request, $business, ['owner']);
-        abort_unless($offer->business_id === $business->getKey(), 404);
+        abort_unless($offer->business_id === $business->getKey() && ! $offer->is_platform_sponsored, 404);
 
         $offer->delete();
 
