@@ -11,3 +11,7 @@ Route::get('esewa/success', [WebhookController::class, 'esewaSuccess'])
 Route::get('esewa/failure', [WebhookController::class, 'esewaFailure'])
     ->middleware('throttle:payment')
     ->name('payments.esewa.failure');
+
+Route::get('khalti/callback', [WebhookController::class, 'khaltiCallback'])
+    ->middleware('throttle:payment')
+    ->name('payments.khalti.callback');

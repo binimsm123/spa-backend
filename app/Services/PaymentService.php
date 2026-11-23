@@ -57,9 +57,10 @@ class PaymentService
                 'gateway_reference' => (string) Str::ulid(),
             ]);
 
+            $payload = $driver->initiate($payment);
             $payment->forceFill([
-                'checkout_url' => config('services.esewa.checkout_url'),
-                'gateway_payload' => $driver->initiate($payment),
+                'checkout_url' => $gateway === PaymentGateway::Khalti ? $payload['payment_url'] : config('services.esewa.checkout_url'),
+                'gateway_payload' => $payload,
             ])->save();
 
             return $payment->refresh();
@@ -133,6 +134,13 @@ class PaymentService
 
             return $payment->refresh();
         });
+    }
+
+    public function fail(Payment $payment): void
+    {
+        Payment::query()->whereKey($payment->getKey())
+            ->where('status', PaymentStatus::Pending->value)
+            ->update(['status' => PaymentStatus::Failed->value]);
     }
 
     /**

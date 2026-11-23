@@ -6,6 +6,6 @@ use App\Models\Payment;
 
 interface PaymentGateway
 {
-    /** @return array<string, string> */
+    /** @return array<string, mixed> */
     public function initiate(Payment $payment): array;
 }

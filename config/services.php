@@ -53,4 +53,11 @@ return [
         'status_url' => env('ESEWA_STATUS_URL', 'https://rc.esewa.com.np/api/epay/transaction/status/'),
     ],
 
+    'khalti' => [
+        'secret' => env('KHALTI_SECRET'),
+        'initiate_url' => env('KHALTI_PAYMENT_URL', 'https://dev.khalti.com/api/v2/epayment/initiate/'),
+        'lookup_url' => env('KHALTI_LOOKUP_URL', 'https://dev.khalti.com/api/v2/epayment/lookup/'),
+        'website_url' => env('KHALTI_WEBSITE_URL', env('APP_URL', 'http://localhost')),
+    ],
+
 ];

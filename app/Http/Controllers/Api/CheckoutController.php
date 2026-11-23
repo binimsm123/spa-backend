@@ -62,7 +62,9 @@ class CheckoutController extends Controller
             $request->validated('promo_code'),
         );
 
-        return $this->success(CheckoutData::quote($quote), 'Checkout quote updated.');
+        $booking->loadMissing(['items', 'business.locations']);
+
+        return $this->success(CheckoutData::quote($quote, $booking), 'Checkout quote updated.');
     }
 
     /**

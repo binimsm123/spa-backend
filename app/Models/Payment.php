@@ -44,6 +44,13 @@ class Payment extends Model
         return $this->belongsTo(Booking::class);
     }
 
+    public function checkoutExpiresIn(): int
+    {
+        $ttl = $this->gateway === PaymentGateway::Khalti ? ($this->gateway_payload['expires_in'] ?? null) : null;
+
+        return max(0, $this->created_at->getTimestamp() + (is_int($ttl) && $ttl > 0 ? $ttl : 900) - now()->getTimestamp());
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -325,6 +325,63 @@ it('starts a payment and confirms the booking via an idempotent eSewa callback',
         ->and($booking->refresh()->reward_points_earned)->toBeGreaterThan(0);
 });
 
+it('starts Khalti checkout and only completes it after an authoritative lookup', function (): void {
+    [$user] = actingAsCustomer();
+    $booking = createPaidBooking($user);
+    $this->freezeTime();
+    $initiate = 'https://dev.khalti.com/api/v2/epayment/initiate/';
+    $lookup = 'https://dev.khalti.com/api/v2/epayment/lookup/';
+    config([
+        'services.khalti.secret' => 'test-khalti-secret',
+        'services.khalti.initiate_url' => $initiate,
+        'services.khalti.lookup_url' => $lookup,
+    ]);
+    $pidx = 'test-khalti-pidx';
+    $paymentUrl = 'https://test-pay.khalti.com/pay?pidx='.$pidx;
+    $completed = ['pidx' => $pidx, 'status' => 'Completed', 'transaction_id' => 'test-transaction', 'refunded' => false];
+
+    Http::fake([
+        $initiate => Http::response(['pidx' => $pidx, 'payment_url' => $paymentUrl, 'expires_in' => 3600]),
+        $lookup => Http::sequence()
+            ->push(['pidx' => $pidx, 'status' => 'Pending', 'total_amount' => 500000])
+            ->push($completed + ['total_amount' => 1])
+            ->push($completed + ['total_amount' => 500000])
+            ->push($completed + ['total_amount' => 500000]),
+    ]);
+
+    $checkout = "/api/v1/bookings/{$booking->id}/checkout";
+    $this->getJson($checkout)->assertOk()->assertJsonPath('data.payment_providers.1.available', true);
+    $paymentId = $this->postJson($checkout, ['gateway' => 'khalti'])
+        ->assertOk()
+        ->assertJsonPath('data.provider', 'khalti')
+        ->assertJsonPath('data.checkout_url', $paymentUrl)
+        ->assertJsonPath('data.expires_in', 3600)
+        ->assertJsonPath('data.status', 'pending')
+        ->json('data.payment_id');
+    $payment = Payment::query()->findOrFail($paymentId);
+
+    Http::assertSent(fn ($request) => $request->url() === $initiate
+        && $request->hasHeader('Authorization', 'Key test-khalti-secret')
+        && $request['amount'] === 500000
+        && $request['purchase_order_id'] === $payment->gateway_reference
+        && $request['return_url'] === route('payments.khalti.callback'));
+
+    $callback = fn (string $id) => route('payments.khalti.callback', [
+        'purchase_order_id' => $payment->gateway_reference, 'pidx' => $id, 'status' => 'Completed',
+    ]);
+    $this->getJson($callback('wrong-pidx'))->assertBadRequest();
+    $this->get($callback($pidx))->assertRedirectContains('success=false');
+    $this->getJson($callback($pidx))->assertBadRequest();
+    expect($booking->refresh()->status)->toBe(BookingStatus::AwaitingPayment);
+    $this->get($callback($pidx))->assertRedirectContains('success=true');
+    $this->get($callback($pidx))->assertRedirectContains('success=true');
+    expect($booking->refresh()->status)->toBe(BookingStatus::Confirmed);
+    $this->assertDatabaseHas('payments', ['id' => $paymentId, 'status' => 'succeeded']);
+    Http::assertSent(fn ($request) => $request->url() === $lookup
+        && $request->hasHeader('Authorization', 'Key test-khalti-secret')
+        && $request->data() === ['pidx' => $pidx]);
+});
+
 it('rejects eSewa callbacks with invalid signatures', function (): void {
     $this->getJson(route('payments.esewa.success', ['data' => base64_encode(json_encode([
         'transaction_code' => 'fake',
@@ -382,8 +439,11 @@ it('uses the business address in checkout and booking details', function (): voi
     $booking = createPaidBooking($user);
     $booking->business->locations()->create(['address' => 'Street 12, Patan', 'service_availability' => 'on_site']);
 
-    $this->getJson("/api/v1/bookings/{$booking->getKey()}/checkout")->assertOk()
+    $summary = $this->getJson("/api/v1/bookings/{$booking->getKey()}/checkout")->assertOk()
         ->assertJsonPath('data.booking.location', 'Street 12, Patan');
+    $this->postJson("/api/v1/bookings/{$booking->getKey()}/checkout/quote")->assertOk()
+        ->assertJsonPath('data.booking_id', $booking->id)
+        ->assertJsonPath('data.booking', $summary->json('data.booking'));
     $response = $this->getJson("/api/v1/bookings/{$booking->getKey()}")->assertOk()
         ->assertJsonPath('data.business_id', $booking->business_id)
         ->assertJsonPath('data.business.address', 'Street 12, Patan');
