@@ -115,6 +115,11 @@ class Booking extends Model
         return $this->hasOne(OfferRedemption::class)->where('status', 'applied');
     }
 
+    public function offerReservation(): HasOne
+    {
+        return $this->hasOne(OfferRedemption::class)->where('status', 'reserved');
+    }
+
     public function review(): HasOne
     {
         return $this->hasOne(Review::class);

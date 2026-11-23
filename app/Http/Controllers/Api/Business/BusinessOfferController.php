@@ -9,7 +9,6 @@ use App\Http\Resources\OfferResource;
 use App\Models\Business;
 use App\Models\Offer;
 use App\Support\ApiResponse;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,16 +22,7 @@ class BusinessOfferController extends Controller
 
         $offers = Offer::query()
             ->withListingDetails()
-            ->where(function (Builder $query) use ($business): void {
-                $query->where('business_id', $business->getKey())
-                    ->orWhere(function (Builder $platform) use ($business): void {
-                        $platform->whereNull('business_id')->where('is_platform_sponsored', true)
-                            ->where(function (Builder $services) use ($business): void {
-                                $services->whereNull('service_id')
-                                    ->orWhereHas('service', fn (Builder $service): Builder => $service->where('business_id', $business->getKey()));
-                            });
-                    });
-            })
+            ->applicableToBusiness($business->getKey())
             ->withCount('redemptions as redemption_count')->latest()->get();
 
         return $this->success(['items' => collect($offers)->map(function (Offer $offer) {

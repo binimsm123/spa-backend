@@ -30,12 +30,15 @@ class OfferController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $filters = $request->validate(['business_id' => ['nullable', 'bail', 'ulid', 'exists:businesses,id']]);
+        $businessId = $filters['business_id'] ?? null;
         $scope = $request->query('scope', 'active');
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
         $now = now();
 
         $query = Offer::query()
             ->withListingDetails()
+            ->when($businessId, fn ($offers) => $offers->applicableToBusiness($businessId))
             ->where('status', '!=', 'paused')
             ->where(function ($q) {
                 $q->whereNull('business_id')->orWhereHas('business', fn ($b) => $b->where('status', 'active'));

@@ -24,6 +24,7 @@ class PaymentService
         private readonly BookingService $bookings,
         private readonly NotificationService $notifications,
         private readonly PaymentGatewayFactory $gateways,
+        private readonly OfferService $offers,
     ) {}
 
     /**
@@ -115,6 +116,9 @@ class PaymentService
             ])->save();
 
             if ($payment->purpose === PaymentPurpose::Booking && $payment->amount_minor === $booking->total_minor) {
+                if ($booking->status === BookingStatus::AwaitingPayment) {
+                    $this->offers->confirmReservation($booking);
+                }
                 $this->bookings->markPaid($booking, actor: null);
             } elseif ($payment->purpose === PaymentPurpose::Tip) {
                 $payment->tip?->forceFill(['status' => 'paid', 'paid_at' => now()])->save();
@@ -137,7 +141,8 @@ class PaymentService
     public function refund(Payment $payment, ?string $reason = null): Payment
     {
         return DB::transaction(function () use ($payment, $reason): Payment {
-            $payment = Payment::query()->whereKey($payment->getKey())->lockForUpdate()->first();
+            $booking = Booking::query()->whereKey($payment->booking_id)->lockForUpdate()->firstOrFail();
+            $payment = Payment::query()->whereKey($payment->getKey())->lockForUpdate()->firstOrFail();
 
             if ($payment->status !== PaymentStatus::Succeeded) {
                 throw ApiException::conflict(ErrorCode::PaymentFailed, 'Only successful payments can be refunded.');
@@ -146,13 +151,12 @@ class PaymentService
             $payment->forceFill(['status' => PaymentStatus::Refunded->value])->save();
 
             if ($payment->purpose === PaymentPurpose::Booking) {
-                $booking = $payment->booking;
                 $booking->forceFill(['status' => BookingStatus::Refunded->value])->save();
 
                 // Release any applied offer redemption and refund its points.
-                $redemption = $booking->offerRedemption;
+                $redemption = $booking->offerRedemption ?? $booking->offerReservation;
                 if ($redemption !== null) {
-                    app(OfferService::class)->release($redemption);
+                    $this->offers->release($redemption);
                 }
             }
 

@@ -41,7 +41,8 @@ class CheckoutService
                     throw ApiException::conflict(ErrorCode::OfferInvalidCode, 'The promo code is not valid.');
                 }
 
-                $this->offers->assertEligible($user, $offer, $booking->items->first()->service, $subtotal);
+                $reservation = $this->offers->reservationForQuote($user, $offer, $booking);
+                $this->offers->assertEligible($user, $offer, $booking->items->first()?->service, $subtotal, $reservation);
                 $discount = $this->offers->calculateDiscount($offer, $subtotal);
             }
 
@@ -90,6 +91,8 @@ class CheckoutService
                     'gateway' => ['Supported gateways are esewa, khalti, and mypay.'],
                 ]);
             }
+
+            $this->offers->reserveForCheckout($user, $booking, $quote);
 
             $booking->forceFill([
                 'subtotal_minor' => $quote->subtotal_minor,

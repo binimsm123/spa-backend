@@ -70,6 +70,30 @@ it('preserves usage counters for platform discounts in the business list', funct
         ->assertJsonPath('data.items.0.remaining_usage', 3);
 });
 
+it('filters customer offers by business while retaining applicable platform discounts', function (): void {
+    $this->actingAs(User::factory()->create(), 'sanctum');
+    [$business, $service] = createBusinessWithService();
+    [$otherBusiness, $otherService] = createBusinessWithService();
+    $active = ['starts_at' => now()->subDay()];
+
+    $own = businessListOffer($active + ['business_id' => $business->id]);
+    $global = businessListOffer($active + ['is_platform_sponsored' => true]);
+    $servicePlatform = businessListOffer($active + ['is_platform_sponsored' => true, 'service_id' => $service->id]);
+    businessListOffer($active + ['business_id' => $otherBusiness->id, 'is_platform_sponsored' => true]);
+    businessListOffer($active + ['is_platform_sponsored' => true, 'service_id' => $otherService->id]);
+    businessListOffer(['is_platform_sponsored' => true]);
+
+    $url = "/api/v1/offers?scope=active&business_id={$business->id}";
+    $response = $this->getJson($url)->assertOk()->assertJsonPath('data.pagination.total', 3);
+    expect(array_column($response->json('data.items'), 'id'))
+        ->toEqualCanonicalizing([$own->id, $global->id, $servicePlatform->id]);
+
+    $this->getJson($url.'&page=2&per_page=2')->assertOk()->assertJsonCount(1, 'data.items');
+    $this->getJson('/api/v1/offers')->assertOk()->assertJsonPath('data.pagination.total', 5);
+    $this->getJson('/api/v1/offers?business_id=invalid')->assertUnprocessable()
+        ->assertJsonValidationErrors('business_id');
+});
+
 it('keeps platform offers read only for business owners', function (): void {
     [$business] = businessOfferListMember();
     $offer = businessListOffer(['is_platform_sponsored' => true, 'business_id' => $business->getKey()]);

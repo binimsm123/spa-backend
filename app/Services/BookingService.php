@@ -25,6 +25,7 @@ class BookingService
         private readonly AvailabilityService $availability,
         private readonly NotificationService $notifications,
         private readonly RewardService $rewards,
+        private readonly OfferService $offers,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -245,6 +246,7 @@ class BookingService
     public function transitionStatus(Booking $booking, BookingStatus $target, ?User $actor = null, ?string $note = null): Booking
     {
         return DB::transaction(function () use ($booking, $target, $actor, $note): Booking {
+            $booking = Booking::query()->lockForUpdate()->findOrFail($booking->getKey());
             $current = $booking->status;
 
             if (! $current->canTransitionTo($target)) {
@@ -262,6 +264,13 @@ class BookingService
                 'cancelled_by_user_id' => $target === BookingStatus::Cancelled ? $actor?->getKey() : $booking->cancelled_by_user_id,
                 'cancel_reason' => $target === BookingStatus::Cancelled ? $note : $booking->cancel_reason,
             ])->save();
+
+            if ($target === BookingStatus::Cancelled || $target === BookingStatus::Expired) {
+                $reservation = $booking->offerReservation;
+                if ($reservation !== null) {
+                    $this->offers->release($reservation);
+                }
+            }
 
             $booking->statusHistory()->create([
                 'changed_by_user_id' => $actor?->getKey(),
@@ -346,10 +355,24 @@ class BookingService
 
     public function expireStaleBookings(): int
     {
-        return Booking::query()
-            ->where('status', BookingStatus::AwaitingPayment->value)
-            ->where('starts_at', '<', now())
-            ->update(['status' => BookingStatus::Expired->value]);
+        $expired = 0;
+        $stale = Booking::query()->where('status', BookingStatus::AwaitingPayment->value)->where('starts_at', '<', now());
+        $stale->select('id')->chunkById(100, function ($bookings) use ($stale, &$expired): void {
+            $expired += DB::transaction(function () use ($stale, $bookings): int {
+                $locked = (clone $stale)->whereKey($bookings->modelKeys())->lockForUpdate()->get();
+                foreach ($locked as $booking) {
+                    $booking->update(['status' => BookingStatus::Expired->value]);
+                    $reservation = $booking->offerReservation;
+                    if ($reservation !== null) {
+                        $this->offers->release($reservation);
+                    }
+                }
+
+                return $locked->count();
+            });
+        });
+
+        return $expired;
     }
 
     // -------------------------------------------------------------------------

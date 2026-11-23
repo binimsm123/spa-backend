@@ -83,6 +83,81 @@ it('builds a checkout quote with promo discount and recalculates totals server-s
         ->assertConflict();
 });
 
+it('explains when the customer has reached the promo code usage limit', function (): void {
+    [$user] = actingAsCustomer();
+    $booking = createPaidBooking($user);
+    $offer = Offer::query()->create([
+        'code' => 'LIMIT10',
+        'title' => 'Limited offer',
+        'discount_type' => 'percentage',
+        'discount_value' => 10,
+        'starts_at' => now()->subDay(),
+        'expires_at' => now()->addDay(),
+        'per_user_limit' => 1,
+    ]);
+    $offer->redemptions()->create([
+        'user_id' => $user->id,
+        'status' => 'applied',
+        'idempotency_key' => (string) Str::ulid(),
+    ]);
+
+    $this->postJson("/api/v1/bookings/{$booking->id}/checkout/quote", ['promo_code' => $offer->code])
+        ->assertConflict()
+        ->assertJsonPath('code', 'OFFER_ALREADY_REDEEMED')
+        ->assertJsonPath('message', 'You have reached your personal usage limit for this offer.');
+});
+
+it('reserves promo usage at checkout and counts a verified payment only once', function (): void {
+    [$user] = actingAsCustomer();
+    $booking = createPaidBooking($user);
+    $secondBooking = createPaidBooking($user);
+    $offer = Offer::query()->create([
+        'code' => 'CHECKOUT10',
+        'title' => 'Checkout offer',
+        'discount_type' => 'percentage',
+        'discount_value' => 10,
+        'starts_at' => now()->subDay(),
+        'expires_at' => now()->addDay(),
+        'per_user_limit' => 1,
+    ]);
+    $checkout = "/api/v1/bookings/{$booking->id}/checkout";
+    $secondCheckout = "/api/v1/bookings/{$secondBooking->id}/checkout";
+    $promo = ['promo_code' => $offer->code];
+    $quote = $this->postJson($checkout.'/quote', $promo)->assertOk()->json('data.quote_id');
+    $secondQuote = $this->postJson($secondCheckout.'/quote', $promo)->assertOk()->json('data.quote_id');
+    $this->assertDatabaseCount('offer_redemptions', 0);
+
+    $payload = ['gateway' => 'esewa', 'quote_id' => $quote];
+    $paymentId = $this->postJson($checkout, $payload)->assertOk()->json('data.payment_id');
+    $this->postJson($checkout, $payload)->assertOk();
+    $this->assertDatabaseCount('offer_redemptions', 1);
+    expect($offer->refresh()->usage_count)->toBe(0);
+
+    $this->postJson($secondCheckout, ['gateway' => 'esewa', 'quote_id' => $secondQuote])
+        ->assertConflict()->assertJsonPath('code', 'OFFER_ALREADY_REDEEMED');
+
+    $payments = app(\App\Services\PaymentService::class);
+    $payment = Payment::query()->findOrFail($paymentId);
+    $payments->complete($payment, []);
+    $payments->complete($payment, []);
+    expect($offer->refresh()->usage_count)->toBe(1);
+    $this->assertDatabaseHas('offer_redemptions', [
+        'offer_id' => $offer->id, 'user_id' => $user->id, 'booking_id' => $booking->id, 'status' => 'applied',
+    ]);
+    $this->postJson($secondCheckout.'/quote', $promo)
+        ->assertConflict()->assertJsonPath('code', 'OFFER_ALREADY_REDEEMED');
+
+    $payments->refund($payment);
+    expect($offer->refresh()->usage_count)->toBe(0);
+    $freshQuote = $this->postJson($secondCheckout.'/quote', $promo)->assertOk()->json('data.quote_id');
+    $this->postJson($secondCheckout, ['gateway' => 'esewa', 'quote_id' => $freshQuote])->assertOk();
+    $secondBooking->update(['starts_at' => now()->subMinute()]);
+    expect(app(\App\Services\BookingService::class)->expireStaleBookings())->toBe(1);
+    $this->assertDatabaseHas('offer_redemptions', [
+        'offer_id' => $offer->id, 'booking_id' => $secondBooking->id, 'status' => 'released',
+    ]);
+});
+
 it('creates a default quote and payment without a quote id', function (): void {
     [$user] = actingAsCustomer();
     $booking = createPaidBooking($user);
