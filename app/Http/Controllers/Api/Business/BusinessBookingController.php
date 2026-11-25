@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Business;
 
+use App\Enums\BookingRequestStatus;
 use App\Enums\BookingStatus;
 use App\Enums\BusinessUserRole;
 use App\Http\Controllers\Controller;
@@ -29,12 +30,13 @@ class BusinessBookingController extends Controller
     {
         $this->assertMember($request, $business);
 
+        $filters = $request->validate(['status' => ['nullable', Rule::enum(BookingRequestStatus::class)]]);
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
 
         $query = BookingRequest::query()
             ->where('business_id', $business->getKey())
             ->with(['service', 'servicePrice', 'user', 'booking'])
-            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
+            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->orderByDesc('created_at');
 
         return $this->paginated(BookingRequestResource::collection($query->paginate($perPage)));

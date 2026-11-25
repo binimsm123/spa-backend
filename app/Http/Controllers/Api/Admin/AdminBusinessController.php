@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Enums\BookingRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BusinessStateRequest;
 use App\Http\Requests\Business\UpsertBusinessRequest;
 use App\Http\Resources\BusinessResource;
+use App\Models\AuditLog;
 use App\Models\Business;
 use App\Models\BusinessOnboarding;
 use App\Services\BusinessOnboardingService;
@@ -33,7 +35,7 @@ class AdminBusinessController extends Controller
     {
         $filters = $request->validate([
             'q' => ['sometimes', 'string', 'max:120'],
-            'status' => ['sometimes', 'string', 'in:pending,active,suspended'],
+            'status' => ['sometimes', 'string', 'in:pending,active,rejected,suspended'],
             'verification' => ['sometimes', 'string', 'in:verified,unverified'],
             'online' => ['sometimes', 'boolean'],
             'created_from' => ['sometimes', 'date_format:Y-m-d'],
@@ -44,7 +46,21 @@ class AdminBusinessController extends Controller
         ]);
         $perPage = (int) ($filters['per_page'] ?? 20);
 
-        $query = Business::query()->with(['locations', 'categories'])
+        $onboardingStatus = BusinessOnboarding::query()
+            ->select('status')->whereColumn('business_id', 'businesses.id');
+        $latestReview = AuditLog::query()->select('action')
+            ->where('target_type', 'business')->whereColumn('target_id', 'businesses.id')
+            ->whereIn('action', ['business.verify', 'business.reject'])
+            ->latest('created_at')->orderByDesc('id')->limit(1);
+        $rejected = "businesses.status = ? and coalesce(({$onboardingStatus->toSql()}) = ?, ({$latestReview->toSql()}) = ?, false)";
+        $rejectionBindings = ['pending', ...$onboardingStatus->getBindings(), 'rejected', ...$latestReview->getBindings(), 'business.reject'];
+        $status = $filters['status'] ?? null;
+
+        $query = Business::query()->select('businesses.*')->with(['locations', 'categories'])
+            ->selectRaw("case when {$rejected} then 1 else 0 end as is_rejected", $rejectionBindings)
+            ->when($request->user()->can('admin.bookings.manage'), fn ($q) => $q->withCount([
+                'bookingRequests as pending_booking_requests_count' => fn ($requests) => $requests->where('status', BookingRequestStatus::Pending->value),
+            ]))
             ->when($filters['q'] ?? null, function ($q, $search): void {
                 $like = '%'.strtolower($search).'%';
                 $q->where(fn ($w) => $w
@@ -52,7 +68,9 @@ class AdminBusinessController extends Controller
                     ->orWhereRaw('LOWER(slug) LIKE ?', [$like])
                     ->orWhereHas('locations', fn ($locations) => $locations->whereRaw('LOWER(address) LIKE ?', [$like])->orWhereRaw('LOWER(city) LIKE ?', [$like])));
             })
-            ->when(isset($filters['status']), fn ($q) => $q->where('status', $filters['status']))
+            ->when($status === 'rejected', fn ($q) => $q->whereRaw($rejected, $rejectionBindings))
+            ->when($status !== null && $status !== 'rejected', fn ($q) => $q->where('status', $status))
+            ->when($status === 'pending', fn ($q) => $q->whereRaw("not ({$rejected})", $rejectionBindings))
             ->when(($filters['verification'] ?? null) === 'verified', fn ($q) => $q->where('is_verified', true))
             ->when(($filters['verification'] ?? null) === 'unverified', fn ($q) => $q->where('is_verified', false))
             ->when(isset($filters['online']), fn ($q) => $q->where('is_online', $filters['online']))

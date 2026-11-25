@@ -42,6 +42,20 @@ it('submits the chosen date and time for business approval without creating a bo
 it('lets the business approve the selected interval and exposes the resulting booking to the customer', function (): void {
     [$business, $service, $price, $owner, $customer, $payload] = selectedTimeFixture();
     $request = app(BookingService::class)->createRequest($customer, $payload);
+    $admin = actingAsSuperadmin();
+    $businessList = '/api/v1/admin/businesses?'.http_build_query(['q' => $business->name]);
+    $pendingRequests = "/api/v1/admin/bookings/requests?business_id={$business->id}&status=pending";
+
+    $this->getJson('/api/v1/admin/bookings/businesses')->assertOk()
+        ->assertJsonFragment(['id' => $business->id, 'name' => $business->name]);
+    $this->getJson('/api/v1/admin/bookings/businesses?'.http_build_query(['q' => strtolower($business->name)]))
+        ->assertOk()->assertJsonFragment(['id' => $business->id, 'name' => $business->name]);
+    $this->getJson('/api/v1/admin/bookings/businesses?q=no_matching_business')
+        ->assertOk()->assertJsonCount(0, 'data.items');
+    $this->getJson($businessList)->assertOk()
+        ->assertJsonPath('data.items.0.pending_booking_requests_count', 1);
+    $this->getJson($pendingRequests)->assertOk()
+        ->assertJsonPath('data.items.0.id', $request->id);
 
     $response = $this->actingAs($owner, 'sanctum')->postJson("/api/v1/business/{$business->id}/bookings/requests/{$request->id}/approve")
         ->assertCreated()->assertJsonPath('data.status', 'awaiting_payment')->assertJsonPath('data.appointment_time', '10:30');
@@ -51,7 +65,34 @@ it('lets the business approve the selected interval and exposes the resulting bo
     $this->assertDatabaseHas('booking_status_history', ['changed_by_user_id' => $owner->id]);
     $this->actingAs($customer, 'sanctum')->getJson("/api/v1/bookings/requests/{$request->id}")
         ->assertOk()->assertJsonPath('data.status', 'approved')->assertJsonPath('data.booking_id', $response->json('data.booking_id'));
+
+    $this->actingAs($admin, 'sanctum')->getJson($businessList)->assertOk()
+        ->assertJsonPath('data.items.0.pending_booking_requests_count', 0);
+    $this->getJson($pendingRequests)->assertOk()->assertJsonCount(0, 'data.items');
 });
+
+it('lets an authorized admin review pending booking requests', function (string $action, int $status, string $decision): void {
+    [$business, $service, $price, $owner, $customer, $payload] = selectedTimeFixture();
+    $bookingRequest = app(BookingService::class)->createRequest($customer, $payload);
+    $url = "/api/v1/admin/bookings/requests/{$bookingRequest->id}";
+    $body = ['action' => $action, 'reason' => 'Reviewed by support'];
+
+    $this->actingAs($customer, 'sanctum')->patchJson($url, $body)->assertForbidden();
+    actingAsSuperadmin();
+    $this->patchJson($url, $body)->assertStatus($status);
+    $this->assertDatabaseHas('booking_requests', ['id' => $bookingRequest->id, 'status' => $decision]);
+    $this->assertDatabaseHas('audit_logs', ['action' => "booking_request.{$decision}", 'target_id' => $bookingRequest->id]);
+    $this->patchJson($url, $body)->assertConflict();
+
+    if ($action === 'reject') {
+        expect($bookingRequest->fresh()->decline_reason)->toBe('Reviewed by support');
+    } else {
+        $this->assertDatabaseHas('bookings', ['booking_request_id' => $bookingRequest->id]);
+    }
+})->with([
+    ['approve', 201, 'approved'],
+    ['reject', 200, 'rejected'],
+]);
 
 it('lets the business reject the selected interval and records the reason', function (): void {
     [$business, $service, $price, $owner, $customer, $payload] = selectedTimeFixture();
@@ -93,7 +134,19 @@ it('allows multiple pending requests but approves only the remaining staff capac
     $bookingService = app(BookingService::class);
     $first = $bookingService->createRequest($customer, $payload);
     $second = $bookingService->createRequest(User::factory()->create(), $payload);
-    $bookingService->approveRequest($owner, $first);
+    $url = "/api/v1/admin/bookings/requests/{$second->id}/availability";
+    $this->actingAs($customer, 'sanctum')->getJson($url)->assertForbidden();
+    actingAsSuperadmin();
+    $this->getJson($url)->assertOk()->assertJsonPath('data.available', true)
+        ->assertJsonPath('data.pending_overlaps.0.id', $first->id)
+        ->assertJsonCount(0, 'data.booking_overlaps');
+    $this->assertDatabaseCount('bookings', 0);
+
+    $booking = $bookingService->approveRequest($owner, $first);
+    $this->getJson($url)->assertOk()->assertJsonPath('data.available', false)
+        ->assertJsonPath('data.reason', 'There are not enough available staff for the selected time. Pick another time.')
+        ->assertJsonPath('data.booking_overlaps.0.id', $booking->id)
+        ->assertJsonCount(0, 'data.pending_overlaps');
 
     $this->actingAs($owner, 'sanctum')->postJson("/api/v1/business/{$business->id}/bookings/requests/{$second->id}/approve")
         ->assertConflict()->assertJsonPath('code', 'BOOKING_SLOT_CONFLICT');

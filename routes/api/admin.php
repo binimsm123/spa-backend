@@ -50,6 +50,10 @@ Route::middleware(['auth:sanctum', 'throttle:admin', 'permission:admin.dashboard
     // Bookings
     Route::middleware('permission:admin.bookings.manage')->group(function (): void {
         Route::get('bookings', [AdminBookingController::class, 'index']);
+        Route::get('bookings/businesses', [AdminBookingController::class, 'businesses']);
+        Route::get('bookings/requests', [AdminBookingController::class, 'requests']);
+        Route::get('bookings/requests/{bookingRequest}/availability', [AdminBookingController::class, 'requestAvailability'])->whereUlid('bookingRequest');
+        Route::patch('bookings/requests/{bookingRequest}', [AdminBookingController::class, 'reviewRequest'])->whereUlid('bookingRequest');
         Route::get('bookings/{booking}', [AdminBookingController::class, 'show'])->whereUlid('booking');
         Route::patch('bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->whereUlid('booking');
         Route::patch('bookings/{booking}/staff', [AdminBookingController::class, 'reassignStaff'])->whereUlid('booking');

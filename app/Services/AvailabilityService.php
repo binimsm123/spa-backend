@@ -269,7 +269,7 @@ class AvailabilityService
     /**
      * Validate a proposed interval inside the caller's booking transaction.
      */
-    public function assertIntervalAvailable(Service $service, Business $business, Carbon $startsAt, Carbon $endsAt, int $peopleCount): void
+    public function assertIntervalAvailable(Service $service, Business $business, Carbon $startsAt, Carbon $endsAt, int $peopleCount, bool $lock = true): void
     {
         $this->assertBookable($service, $peopleCount);
 
@@ -287,7 +287,7 @@ class AvailabilityService
 
         $startsAt = $startsAt->copy()->setTimezone($business->timezone);
         $endsAt = $endsAt->copy()->setTimezone($business->timezone);
-        $schedule = $this->staffing->scheduleFor($business, $startsAt, true);
+        $schedule = $this->staffing->scheduleFor($business, $startsAt, $lock);
         if ($this->staffing->suggestionsFor($service, $schedule, $startsAt, $endsAt, $service->required_staff_count)->isEmpty()) {
             throw ApiException::conflict(ErrorCode::BookingSlotConflict, 'There are not enough available staff for the selected time. Pick another time.');
         }

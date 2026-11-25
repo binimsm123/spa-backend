@@ -116,12 +116,17 @@ it('reviews rejects corrects and approves while retaining unchanged files and de
     $detail = $this->getJson('/api/v1/admin/businesses/'.$id)->assertOk()->assertJsonCount(7, 'data.onboarding.documents');
     $this->get($detail->json('data.onboarding.documents.0.view_url'))->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
     $this->patchJson('/api/v1/admin/businesses/'.$id.'/state', ['action' => 'reject', 'reason' => 'PAN is blurry'])->assertOk();
+    $this->getJson('/api/v1/admin/businesses?status=rejected')->assertOk()
+        ->assertJsonPath('data.items.0.id', $id)->assertJsonPath('data.items.0.is_rejected', true);
+    $this->getJson('/api/v1/admin/businesses?status=pending')->assertOk()->assertJsonCount(0, 'data.items');
     $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/onboarding')->assertJsonPath('data.application.rejection_reason', 'PAN is blurry');
     $this->post('/api/v1/business/onboarding/resubmit', [...$fields, 'pan_number' => 'corrected', 'personal_pan' => UploadedFile::fake()->image('new-pan.png')], ['Accept' => 'application/json', 'Idempotency-Key' => 'correct-1'])
         ->assertAccepted()->assertJsonPath('data.application.revision', 2)->assertJsonPath('data.application.status', 'submitted')->assertJsonPath('data.application.rejection_reason', null);
     $new = $app->fresh()->documents;
     expect($new['personal_pan']['path'])->not->toBe($oldFiles['personal_pan']['path']);
     expect($new['citizenship'])->toBe($oldFiles['citizenship']);
+    $this->actingAs($admin, 'sanctum')->getJson('/api/v1/admin/businesses?status=pending')->assertOk()
+        ->assertJsonPath('data.items.0.id', $id)->assertJsonPath('data.items.0.is_rejected', false);
     $this->actingAs($admin, 'sanctum')->patchJson('/api/v1/admin/businesses/'.$id.'/state', ['action' => 'verify'])->assertOk();
     $this->actingAs($owner, 'sanctum')->getJson('/api/v1/business/onboarding')->assertJsonPath('data.application.status', 'verified');
     $this->post('/api/v1/business/onboarding/resubmit', $fields, ['Accept' => 'application/json', 'Idempotency-Key' => 'locked'])->assertConflict();

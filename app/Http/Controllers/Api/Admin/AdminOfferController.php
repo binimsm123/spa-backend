@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpsertAdminOfferRequest;
-use App\Http\Resources\OfferResource;
+use App\Http\Resources\AdminOfferResource;
 use App\Models\Offer;
 use App\Support\ApiException;
 use App\Support\ApiResponse;
@@ -30,7 +30,7 @@ class AdminOfferController extends Controller
 
         $offers = $query->paginate($perPage);
 
-        return $this->paginated(OfferResource::collection($offers));
+        return $this->paginated(AdminOfferResource::collection($offers));
     }
 
     public function store(UpsertAdminOfferRequest $request): JsonResponse
@@ -43,7 +43,7 @@ class AdminOfferController extends Controller
 
         AuditLogger::record($request->user(), 'offer.created', 'offer', $offer->getKey(), null, $offer->only(['code', 'title', 'discount_type', 'discount_value', 'business_id', 'service_id']));
 
-        return $this->resource(OfferResource::make($offer->load(Offer::SUMMARY_RELATIONS)), 'Offer created.', 201);
+        return $this->resource(AdminOfferResource::make($offer->refresh()->load(Offer::SUMMARY_RELATIONS)), 'Offer created.', 201);
     }
 
     public function update(UpsertAdminOfferRequest $request, Offer $offer): JsonResponse
@@ -54,7 +54,7 @@ class AdminOfferController extends Controller
 
         AuditLogger::record($request->user(), 'offer.updated', 'offer', $offer->getKey(), $before, $offer->only($auditedFields));
 
-        return $this->resource(OfferResource::make($offer->refresh()->load(Offer::SUMMARY_RELATIONS)), 'Offer updated.');
+        return $this->resource(AdminOfferResource::make($offer->refresh()->load(Offer::SUMMARY_RELATIONS)), 'Offer updated.');
     }
 
     public function destroy(Request $request, Offer $offer): JsonResponse
@@ -92,6 +92,6 @@ class AdminOfferController extends Controller
 
         AuditLogger::record($request->user(), 'offer.expired', 'offer', $offer->getKey(), ['status' => $before], ['status' => 'expired']);
 
-        return $this->resource(OfferResource::make($offer->refresh()), 'Offer expired.');
+        return $this->resource(AdminOfferResource::make($offer->refresh()), 'Offer expired.');
     }
 }

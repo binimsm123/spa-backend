@@ -31,7 +31,16 @@ it('limits an admin offer to all services of the selected business or to one ser
         ->assertCreated()
         ->assertJsonPath('data.business_id', $business->id)
         ->assertJsonPath('data.service_id', $serviceSpecific ? $service->id : null)
-        ->assertJsonPath('data.is_platform_sponsored', true);
+        ->assertJsonPath('data.is_platform_sponsored', true)
+        ->assertJsonPath('data.usage_count', 0)
+        ->assertJsonPath('data.total_usage_limit', null)
+        ->assertJsonPath('data.per_user_limit', 1);
+
+    $this->getJson('/api/v1/admin/offers')
+        ->assertOk()
+        ->assertJsonPath('data.items.0.usage_count', 0)
+        ->assertJsonPath('data.items.0.total_usage_limit', null)
+        ->assertJsonPath('data.items.0.per_user_limit', 1);
 
     $expectedBusiness = ['id' => $business->id, 'name' => $business->name];
     $expectedService = $serviceSpecific ? [

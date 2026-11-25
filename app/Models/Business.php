@@ -119,6 +119,11 @@ class Business extends Model
         return $this->hasMany(Booking::class);
     }
 
+    public function bookingRequests(): HasMany
+    {
+        return $this->hasMany(BookingRequest::class);
+    }
+
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);

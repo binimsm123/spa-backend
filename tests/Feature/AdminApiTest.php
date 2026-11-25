@@ -83,6 +83,12 @@ it('verifies and suspends businesses with audit trail', function (): void {
     $business->forceFill(['is_verified' => false, 'status' => 'pending'])->save();
 
     $this->actingAs($admin, 'sanctum')
+        ->patchJson("/api/v1/admin/businesses/{$business->getKey()}/state", ['action' => 'reject', 'reason' => 'Missing documentation'])
+        ->assertOk();
+    $this->getJson('/api/v1/admin/businesses?status=rejected')->assertOk()
+        ->assertJsonPath('data.items.0.id', $business->getKey())->assertJsonPath('data.items.0.is_rejected', true);
+
+    $this->actingAs($admin, 'sanctum')
         ->patchJson("/api/v1/admin/businesses/{$business->getKey()}/state", ['action' => 'verify'])
         ->assertOk();
 

@@ -100,6 +100,19 @@ it('lists only the price selected for each booking request even when requests sh
     }
 });
 
+it('filters business booking requests using the current request statuses', function (): void {
+    [, $business] = createBusinessOwner();
+    $url = '/api/v1/business/'.$business->getKey().'/bookings/requests';
+
+    foreach (['pending', 'approved', 'rejected', 'expired', 'cancelled'] as $status) {
+        $this->getJson($url.'?status='.$status)->assertOk();
+    }
+
+    foreach (['accepted', 'confirmed', 'declined', 'times_proposed'] as $status) {
+        $this->getJson($url.'?status='.$status)->assertUnprocessable()->assertJsonValidationErrors('status');
+    }
+});
+
 it('returns no unrelated prices for a legacy request without a selected price', function (): void {
     [$owner, $business] = createBookingBusinessOwner();
     $service = $business->services()->firstOrFail();
