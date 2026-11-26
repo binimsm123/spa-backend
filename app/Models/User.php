@@ -82,6 +82,11 @@ class User extends Authenticatable
     // Relationships
     // -------------------------------------------------------------------------
 
+    public function favouriteServices(): BelongsToMany
+    {
+        return $this->belongsToMany(Service::class, 'service_favourites');
+    }
+
     public function businesses(): BelongsToMany
     {
         return $this->belongsToMany(Business::class, 'business_users')

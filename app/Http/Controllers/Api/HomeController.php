@@ -65,7 +65,9 @@ class HomeController extends Controller
         $business->load([
             'hours',
             'closures',
-            'services' => fn ($q) => $q->where('status', 'active')->with(['category', 'currentPrices', 'photos']),
+            'services' => fn ($q) => $q->where('status', 'active')
+                ->with(['category', 'currentPrices', 'photos'])
+                ->withExists(['favouritedBy as is_favourite' => fn ($users) => $users->whereKey($request->user()->getKey())]),
             'offers' => fn ($q) => $q->withListingDetails()->where('status', 'active')->where('starts_at', '<=', now())->where('expires_at', '>=', now()),
             'reviews' => fn ($q) => $q->where('is_hidden', false)->with('user')->latest()->limit(10),
         ]);

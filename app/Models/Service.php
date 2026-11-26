@@ -70,6 +70,16 @@ class Service extends Model
         ];
     }
 
+    public function favouritedBy(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'service_favourites');
+    }
+
+    public function imageUrl(): ?string
+    {
+        return $this->image_path ? url('storage/'.$this->image_path) : null;
+    }
+
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\Business\BusinessProfileController;
 use App\Http\Controllers\Api\CheckoutController;
+use App\Http\Controllers\Api\FavouriteController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
@@ -27,6 +28,11 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function (): void {
     // Route::get('newHome', [HomeController::class, 'newHome']);
     Route::get('businesses', [HomeController::class, 'businesses']);
     Route::get('businesses/{business}', [HomeController::class, 'businessDetail']);
+
+    // Favourites
+    Route::get('favourites', [FavouriteController::class, 'index']);
+    Route::put('favourites/{service}', [FavouriteController::class, 'store'])->whereUlid('service');
+    Route::delete('favourites/{serviceId}', [FavouriteController::class, 'destroy'])->whereUlid('serviceId');
 
     // Availability + booking flow
     Route::get('businesses/{business}/available-dates', [BookingController::class, 'availableDates'])->whereUlid('business')
